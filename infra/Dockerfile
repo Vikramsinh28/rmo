@@ -31,7 +31,7 @@ ENV NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL}
 ENV NEXT_PUBLIC_S3_PUBLIC_BASE_URL=${NEXT_PUBLIC_S3_PUBLIC_BASE_URL}
 ENV NEXT_PUBLIC_FILE_STORAGE_DRIVER=${NEXT_PUBLIC_FILE_STORAGE_DRIVER}
 
-RUN pnpm generate && pnpm build && pnpm prune --prod
+RUN pnpm generate && pnpm build && pnpm prune --prod --config.confirmModulesPurge=false
 
 FROM base AS runner
 
