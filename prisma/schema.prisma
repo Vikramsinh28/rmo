@@ -1,0 +1,372 @@
+// schema.prisma 
+
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/lib/prisma/generated"
+}
+
+enum UserRole {
+  ADMIN
+  USER
+}
+
+enum UserPlan {
+  FREE
+  PRO
+}
+
+enum OtpPurpose {
+  SIGNUP
+  PASSWORD_RESET
+}
+
+enum ContactPurpose {
+  ACCOUNT
+  BILLING
+  TECHNICAL_SUPPORT
+  FEATURE_REQUEST
+  BUG_REPORT
+  GENERAL_INQUIRY
+  OTHER
+}
+
+enum ContactStatus {
+  NEW
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+enum RmoRole {
+  SYSTEM_ADMIN
+  SUPER_ADMIN
+  DIVISION_ADMIN
+  DIVISION_MONITOR
+  LOBBY_USER
+  CREW_USER
+}
+
+enum AccountStatus {
+  ACTIVE
+  DISABLED
+}
+
+enum OrgStatus {
+  ACTIVE
+  DISABLED
+}
+
+model User {
+  id                 Int                 @id @default(autoincrement())
+  googleId           String?             @unique
+  name               String
+  email              String              @unique
+  password           String? // Hashed password for non-Google users
+  profilePicture     String? // URL to the profile picture
+  role               UserRole            @default(USER)
+  isOnboarded        Boolean             @default(false)
+  credits            Float               @default(100.0) // Available credits
+  stripeCustomerId   String?             @unique
+  plan               UserPlan            @default(FREE)
+  isOverDue          Boolean             @default(false)
+  planExpiringAt     DateTime?
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  deletedAt          DateTime? // Soft delete
+  loginId            String?             @unique
+  accountStatus      AccountStatus       @default(ACTIVE)
+  rmoRole            RmoRole             @default(CREW_USER)
+  homeZoneId         Int?
+  homeDivisionId     Int?
+  homeLobbyId        Int?
+  files              File[]
+  creditHistory      CreditHistory[]
+  blogs              Blog[]
+  contactSubmissions ContactSubmission[]
+  emailTemplates     EmailTemplate[]
+  campaigns          Campaign[]
+  campaignRecipients CampaignRecipient[]
+  homeZone           Zone?               @relation("HomeZone", fields: [homeZoneId], references: [id])
+  homeDivision       Division?           @relation("HomeDivision", fields: [homeDivisionId], references: [id])
+  homeLobby          Lobby?              @relation("HomeLobby", fields: [homeLobbyId], references: [id])
+  auditLogs          AuditLog[]
+
+  @@index([rmoRole])
+  @@index([accountStatus])
+  @@index([homeDivisionId])
+  @@index([homeLobbyId])
+}
+
+model Package {
+  id             Int      @id @default(autoincrement())
+  title          String
+  description    String
+  isFeatured     Boolean  @default(false)
+  price          Decimal
+  currencySymbol String   @default("$")
+  features       Json // JSON array of features
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model File {
+  id           Int       @id @default(autoincrement())
+  userId       Int?
+  filename     String
+  originalName String
+  mimeType     String
+  size         Int // File size in bytes
+  url          String? // Storage URL (S3, Supabase, etc.)
+  metadata     Json? // Additional file metadata
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime? // Soft delete
+  user         User?     @relation(fields: [userId], references: [id])
+}
+
+model CreditHistory {
+  id           Int                   @id @default(autoincrement())
+  userId       Int
+  type         CreditTransactionType
+  operation    CreditOperation
+  amount       Float // Amount of credits (positive for credit, negative for debit)
+  balanceAfter Float // Balance after this transaction
+  objectId     String? // Related object ID (messageId, searchQueryId, etc.)
+  description  String? // Optional description
+  createdAt    DateTime              @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, createdAt])
+}
+
+enum CreditTransactionType {
+  CREDIT
+  DEBIT
+}
+
+enum CreditOperation {
+  INITIAL_CREDITS
+}
+
+model Blog {
+  id           Int      @id @default(autoincrement())
+  title        String
+  slug         String   @unique
+  content      String
+  tags         String[] // Tags stored as array
+  blogImageUrl String?  @db.VarChar(255)
+  published    Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  authorId     Int // References User
+
+  author     User           @relation(fields: [authorId], references: [id])
+  categories BlogCategory[]
+}
+
+model Category {
+  id        Int            @id @default(autoincrement())
+  name      String         @unique
+  slug      String         @unique
+  createdAt DateTime       @default(now()) @db.Timestamptz()
+  updatedAt DateTime       @default(now()) @db.Timestamptz()
+  blogs     BlogCategory[]
+}
+
+model BlogCategory {
+  blogId     Int
+  categoryId Int
+
+  blog     Blog     @relation(fields: [blogId], references: [id])
+  category Category @relation(fields: [categoryId], references: [id])
+
+  @@id([blogId, categoryId])
+}
+
+model EmailOTP {
+  id         Int        @id @default(autoincrement())
+  email      String
+  otp        String
+  purpose    OtpPurpose
+  expiringAt DateTime
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+
+  @@index([email, purpose])
+  @@index([expiringAt])
+}
+
+model ContactSubmission {
+  id         Int            @id @default(autoincrement())
+  uuid       String         @unique @default(dbgenerated("gen_random_uuid()"))
+  userId     Int? // Optional - if user is logged in
+  name       String
+  email      String
+  purpose    ContactPurpose
+  message    String
+  status     ContactStatus  @default(NEW)
+  adminNotes String? // Admin can add notes
+  resolvedAt DateTime? // When the issue was resolved
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+  deletedAt  DateTime? // Soft delete
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([status])
+  @@index([purpose])
+  @@index([createdAt])
+}
+
+enum EmailType {
+  TRANSACTIONAL
+  PROMOTIONAL
+}
+
+enum CampaignStatus {
+  SCHEDULED
+  SENT
+  FAILED
+  PARTIALLYSUCCESS
+}
+
+enum CampaignRecipientStatus {
+  PENDING
+  SENT
+  FAILED
+  OPENED
+  CLICKED
+}
+
+model EmailTemplate {
+  id           Int       @id @default(autoincrement())
+  userId       Int
+  name         String
+  subject      String
+  fromEmail    String
+  fromName     String
+  replyToEmail String?
+  emailType    EmailType @default(TRANSACTIONAL)
+  body         String
+  variables    String[] // Store variable names as array of strings
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime? // Soft delete
+
+  user      User       @relation(fields: [userId], references: [id])
+  campaigns Campaign[]
+
+  @@index([userId])
+  @@index([emailType])
+}
+
+model Campaign {
+  id              Int            @id @default(autoincrement())
+  userId          Int
+  name            String
+  emailTemplateId Int
+  description     String?
+  status          CampaignStatus @default(SCHEDULED)
+  scheduledAt     DateTime?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  user          User                @relation(fields: [userId], references: [id])
+  emailTemplate EmailTemplate       @relation(fields: [emailTemplateId], references: [id])
+  recipients    CampaignRecipient[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([scheduledAt])
+}
+
+model CampaignRecipient {
+  id           Int                     @id @default(autoincrement())
+  campaignId   Int
+  userId       Int
+  status       CampaignRecipientStatus @default(PENDING)
+  emailBody    String? // Complete HTML email body
+  errorMessage String? // Error message if email delivery fails
+  sentAt       DateTime?
+  openedAt     DateTime?
+  clickedAt    DateTime?
+  createdAt    DateTime                @default(now())
+  updatedAt    DateTime                @updatedAt
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id])
+
+  @@index([campaignId])
+  @@index([userId])
+  @@index([status])
+}
+
+model Zone {
+  id        Int       @id @default(autoincrement())
+  name      String
+  code      String    @unique
+  status    OrgStatus @default(ACTIVE)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  divisions Division[]
+  homeUsers User[]     @relation("HomeZone")
+
+  @@index([status])
+}
+
+model Division {
+  id        Int       @id @default(autoincrement())
+  zoneId    Int
+  name      String
+  code      String
+  status    OrgStatus @default(ACTIVE)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  zone      Zone      @relation(fields: [zoneId], references: [id])
+  lobbies   Lobby[]
+  homeUsers User[]    @relation("HomeDivision")
+
+  @@unique([zoneId, code])
+  @@index([zoneId])
+  @@index([status])
+}
+
+model Lobby {
+  id         Int       @id @default(autoincrement())
+  divisionId Int
+  name       String
+  code       String
+  status     OrgStatus @default(ACTIVE)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  division   Division  @relation(fields: [divisionId], references: [id])
+  homeUsers  User[]    @relation("HomeLobby")
+
+  @@unique([divisionId, code])
+  @@index([divisionId])
+  @@index([status])
+}
+
+model AuditLog {
+  id         Int      @id @default(autoincrement())
+  actorId    Int?
+  action     String
+  targetType String
+  targetId   String?
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  actor User? @relation(fields: [actorId], references: [id])
+
+  @@index([actorId])
+  @@index([createdAt])
+  @@index([action])
+}

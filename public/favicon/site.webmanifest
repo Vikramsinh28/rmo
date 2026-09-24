@@ -1,0 +1,14 @@
+{
+  "name": "Railway Monitor",
+  "short_name": "RMO",
+  "icons": [
+    {
+      "src": "/logos/rmo-logo.png",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ],
+  "theme_color": "#ffffff",
+  "background_color": "#ffffff",
+  "display": "standalone"
+}

@@ -1,0 +1,171 @@
+/**
+ * Route configuration definitions.
+ * Page routes for the RMO shell and the auth/file APIs that remain.
+ */
+
+import {
+  ADMIN,
+  CREW_USER,
+  DIVISION_ADMIN,
+  DIVISION_MONITOR,
+  LOBBY_USER,
+  RouteConfig,
+  SUPER_ADMIN,
+  SYSTEM_ADMIN,
+  USER,
+} from './types';
+
+const SIGNED_IN = [
+  USER,
+  ADMIN,
+  SYSTEM_ADMIN,
+  SUPER_ADMIN,
+  DIVISION_ADMIN,
+  DIVISION_MONITOR,
+  LOBBY_USER,
+  CREW_USER,
+] as const;
+
+const ORG_ADMIN = [SYSTEM_ADMIN] as const;
+const DIVISION_READ = [SYSTEM_ADMIN, DIVISION_ADMIN, DIVISION_MONITOR] as const;
+const USER_ADMIN = [SYSTEM_ADMIN, DIVISION_ADMIN] as const;
+const LOBBY_READ = [...DIVISION_READ, LOBBY_USER] as const;
+
+export const ALL_ROUTES: RouteConfig[] = [
+  { path: '/', isPublic: true },
+  { path: '/login', isPublic: true },
+  { path: '/sitemap.xml', isPublic: true },
+  { path: '/robots.txt', isPublic: true },
+  { path: '/api/health', isPublic: true },
+
+  { path: '/favicon.ico', isPublic: true },
+  { path: '/favicon/[...path]', isPublic: true },
+  { path: '/_next/[...path]', isPublic: true },
+  { path: '/images/[...path]', isPublic: true },
+  { path: '/logos/[...path]', isPublic: true },
+
+  { path: '/api/auth/logout', isPublic: true },
+  { path: '/api/auth', isPublic: true },
+  { path: '/api/auth/login', isPublic: true },
+  { path: '/api/auth/signup', isPublic: true },
+  { path: '/api/auth/verify-signup', isPublic: true },
+  { path: '/api/auth/forgot-password', isPublic: true },
+  { path: '/api/auth/reset-password', isPublic: true },
+  { path: '/api/auth/resend-otp', isPublic: true },
+  { path: '/api/auth/me', isPublic: false, accessTo: { GET: [...SIGNED_IN] } },
+
+  { path: '/overview', isPublic: false, accessTo: { GET: [...SIGNED_IN] } },
+  { path: '/zones', isPublic: false, accessTo: { GET: [...ORG_ADMIN] } },
+  { path: '/divisions', isPublic: false, accessTo: { GET: [...DIVISION_READ] } },
+  { path: '/lobbies', isPublic: false, accessTo: { GET: [...LOBBY_READ] } },
+  { path: '/users', isPublic: false, accessTo: { GET: [...USER_ADMIN] } },
+  { path: '/roles', isPublic: false, accessTo: { GET: [...ORG_ADMIN] } },
+  { path: '/audit', isPublic: false, accessTo: { GET: [...ORG_ADMIN] } },
+  { path: '/crew', isPublic: false, accessTo: { GET: [CREW_USER, ...ORG_ADMIN] } },
+  { path: '/monitoring', isPublic: false, accessTo: { GET: [DIVISION_MONITOR, ...ORG_ADMIN] } },
+  { path: '/forms', isPublic: false, accessTo: { GET: [...ORG_ADMIN] } },
+  { path: '/devices', isPublic: false, accessTo: { GET: [...ORG_ADMIN] } },
+  { path: '/safety-events', isPublic: false, accessTo: { GET: [...ORG_ADMIN] } },
+  { path: '/settings', isPublic: false, accessTo: { GET: [...SIGNED_IN] } },
+
+  {
+    path: '/api/auth',
+    isPublic: false,
+    accessTo: { GET: [...SIGNED_IN] },
+  },
+  {
+    path: '/api/users/data',
+    isPublic: false,
+    accessTo: { GET: [USER, ADMIN] },
+  },
+  {
+    path: '/api/files',
+    isPublic: false,
+    accessTo: { GET: [USER, ADMIN], POST: [USER, ADMIN] },
+  },
+  {
+    path: '/api/files/[id]',
+    isPublic: false,
+    accessTo: { GET: [USER, ADMIN], PUT: [USER, ADMIN], DELETE: [USER, ADMIN] },
+  },
+  {
+    path: '/api/files/[id]/download',
+    isPublic: false,
+    accessTo: { POST: [USER, ADMIN] },
+  },
+  {
+    path: '/api/file-upload/presigned-url',
+    isPublic: false,
+    accessTo: { POST: [USER, ADMIN] },
+  },
+  {
+    path: '/api/admin/users',
+    isPublic: false,
+    accessTo: { GET: [...USER_ADMIN], POST: [...USER_ADMIN] },
+  },
+  {
+    path: '/api/admin/users/[id]',
+    isPublic: false,
+    accessTo: {
+      GET: [...USER_ADMIN],
+      PUT: [...USER_ADMIN],
+      PATCH: [...USER_ADMIN],
+      DELETE: [...ORG_ADMIN],
+    },
+  },
+  {
+    path: '/api/admin/users/[id]/restore',
+    isPublic: false,
+    accessTo: { POST: [...ORG_ADMIN] },
+  },
+  {
+    path: '/api/admin/users/[id]/password',
+    isPublic: false,
+    accessTo: { POST: [...USER_ADMIN] },
+  },
+  {
+    path: '/api/admin/zones',
+    isPublic: false,
+    accessTo: { GET: [...ORG_ADMIN], POST: [...ORG_ADMIN] },
+  },
+  {
+    path: '/api/admin/zones/[id]',
+    isPublic: false,
+    accessTo: { PATCH: [...ORG_ADMIN] },
+  },
+  {
+    path: '/api/admin/divisions',
+    isPublic: false,
+    accessTo: { GET: [...DIVISION_READ], POST: [...ORG_ADMIN] },
+  },
+  {
+    path: '/api/admin/divisions/[id]',
+    isPublic: false,
+    accessTo: { GET: [...DIVISION_READ], PATCH: [...ORG_ADMIN] },
+  },
+  {
+    path: '/api/admin/lobbies',
+    isPublic: false,
+    accessTo: { GET: [...LOBBY_READ], POST: [...ORG_ADMIN] },
+  },
+  {
+    path: '/api/admin/lobbies/[id]',
+    isPublic: false,
+    accessTo: { GET: [...LOBBY_READ], PATCH: [...ORG_ADMIN] },
+  },
+  {
+    path: '/api/admin/roles',
+    isPublic: false,
+    accessTo: { GET: [...ORG_ADMIN] },
+  },
+  {
+    path: '/api/admin/audit-logs',
+    isPublic: false,
+    accessTo: { GET: [...ORG_ADMIN] },
+  },
+  {
+    path: '/api/admin/dashboard',
+    isPublic: false,
+    accessTo: { GET: [...SIGNED_IN] },
+  },
+] as const;

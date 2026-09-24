@@ -1,0 +1,46 @@
+# Optional app container. The supported local database is ../docker-compose.yml
+# on host port 5434. This file publishes Postgres on 5435 so the two do not clash.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: kostra-postgres
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=rmo_kostra_dev
+    ports:
+    - "5435:5432"
+    volumes:
+      - ./data/pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d rmo_kostra_dev"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile-local.dockerfile
+    container_name: kostra-app
+    environment:
+      - NODE_ENV=development
+      - HOST=0.0.0.0
+      - POSTGRES_URL=postgresql://postgres:postgres@postgres:5432/rmo_kostra_dev?schema=public
+      - WATCHPACK_POLLING=true
+      - CHOKIDAR_USEPOLLING=true
+    env_file:
+      - ../.env
+    ports:
+      - "3000:3000"
+    volumes:
+      - ..:/app
+      - /app/node_modules
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: sh -lc "npm run generate && npm run migrate:prod && npm run dev"
+
+volumes:
+  pgdata:

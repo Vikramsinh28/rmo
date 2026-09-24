@@ -1,0 +1,16 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"path": "../railway-monitor"
+		},
+		{
+			"path": "../remote_monitoring_admin_app"
+		},
+		{
+			"path": "../remote_monitoring_user_app"
+		}
+	]
+}
