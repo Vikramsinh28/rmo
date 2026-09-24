@@ -25,25 +25,36 @@ export interface JWTPayload {
 }
 
 const JWT_ALGORITHM = 'HS256';
-const JWT_SECRET_RAW = process.env.JWT_SECRET;
-export const JWT_KEY = process.env.JWT_KEY;
 
-if (!JWT_SECRET_RAW) {
-  throw new Error('JWT_SECRET must be set');
+function readEnv(name: string): string | undefined {
+  return process.env[name];
 }
-const JWT_SECRET_KEY = new TextEncoder().encode(JWT_SECRET_RAW);
+
+function jwtSecretKey(): Uint8Array {
+  const secret = readEnv('JWT_SECRET');
+  if (!secret) {
+    throw new Error('JWT_SECRET must be set');
+  }
+  return new TextEncoder().encode(secret);
+}
+
+export function getJwtCookieName(): string {
+  return readEnv('JWT_KEY') || 'auth-token';
+}
+
+export const JWT_KEY = readEnv('JWT_KEY');
 
 export const generateJWT = async (payload: JWTPayload): Promise<string> => {
   return new SignJWT(payload as unknown as Record<string, unknown>)
     .setProtectedHeader({ alg: JWT_ALGORITHM })
     .setIssuedAt()
     .setExpirationTime('24h')
-    .sign(JWT_SECRET_KEY);
+    .sign(jwtSecretKey());
 };
 
 export const verifyJWT = async (token: string): Promise<JWTPayload> => {
   try {
-    const { payload } = await jwtVerify(token, JWT_SECRET_KEY, {
+    const { payload } = await jwtVerify(token, jwtSecretKey(), {
       algorithms: [JWT_ALGORITHM],
     });
 
@@ -55,7 +66,7 @@ export const verifyJWT = async (token: string): Promise<JWTPayload> => {
 };
 
 export const extractTokenFromRequest = (request: NextRequest): string | null => {
-  const token = request.cookies.get(JWT_KEY || 'auth-token')?.value;
+  const token = request.cookies.get(getJwtCookieName())?.value;
   return token || null;
 };
 
@@ -84,7 +95,7 @@ export const getUserIdFromHeaders = (request: NextRequest): string | null => {
  */
 export const setAuthCookie = async (token: string): Promise<void> => {
   const cookieStore = await cookies();
-  cookieStore.set(JWT_KEY || 'auth-token', token, {
+  cookieStore.set(getJwtCookieName(), token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',

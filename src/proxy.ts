@@ -1,4 +1,4 @@
-import { getAuthUser, JWT_KEY, JWTPayload } from '@/lib/auth/jwt';
+import { getAuthUser, getJwtCookieName, JWTPayload } from '@/lib/auth/jwt';
 import {
   applyCorsHeaders,
   checkAnyAccess,
@@ -19,7 +19,7 @@ function sessionRoles(authUser: JWTPayload): string[] {
 function denied(request: NextRequest, status: 401 | 403) {
   if (status === 401) {
     const response = unauthorizedResponse('Authentication is required.');
-    response.cookies.delete(JWT_KEY || 'auth-token');
+    response.cookies.delete(getJwtCookieName());
     return applyCorsHeaders(request, response);
   }
   const response = NextResponse.json(
@@ -77,7 +77,7 @@ const proxy = async (request: NextRequest) => {
       }
       // For page routes, redirect to login
       const response = NextResponse.redirect(new URL('/login', request.url));
-      response.cookies.delete(JWT_KEY || 'auth-token');
+      response.cookies.delete(getJwtCookieName());
       return response;
     }
   }
@@ -99,7 +99,7 @@ const proxy = async (request: NextRequest) => {
       }
       // For page routes, redirect to login
       const response = NextResponse.redirect(new URL('/login', request.url));
-      response.cookies.delete(JWT_KEY || 'auth-token');
+      response.cookies.delete(getJwtCookieName());
       return response;
     }
 
