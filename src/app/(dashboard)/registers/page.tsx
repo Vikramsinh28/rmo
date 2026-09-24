@@ -1,10 +1,7 @@
-import { ModulePlaceholder } from '@/components/organisms/shared/ModulePlaceholder';
+'use client';
+
+import { RegisterScreen } from '@/components/organisms/modules/forms/RegisterScreen';
 
 export default function RegistersPage() {
-  return (
-    <ModulePlaceholder
-      title="Registers"
-      description="Registers are not part of this phase."
-    />
-  );
+  return <RegisterScreen />;
 }

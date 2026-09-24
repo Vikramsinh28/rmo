@@ -22,6 +22,10 @@ interface Summary {
   kiosks: number;
   health: null;
   activity: Activity[];
+  pendingEnrollments: number;
+  approvedToday: number;
+  rejectedToday: number;
+  crewMembers: number;
 }
 
 const LABELS: Record<string, string> = {
@@ -30,6 +34,9 @@ const LABELS: Record<string, string> = {
   'user.enabled': 'User enabled',
   'user.disabled': 'User disabled',
   'user.password_reset': 'Password reset',
+  'crew_enrollment.created': 'Crew enrollment submitted',
+  'crew_enrollment.approved': 'Crew enrollment approved',
+  'crew_enrollment.rejected': 'Crew enrollment rejected',
   'device.created': 'Device created',
   'device.updated': 'Device updated',
   'device.enabled': 'Device enabled',
@@ -77,6 +84,21 @@ export function DivisionDashboard() {
           </Link>
         </p>
       </div>
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {(
+          [
+            ['Pending enrollments', summary.pendingEnrollments, '/enrollments?status=PENDING'],
+            ['Approved today', summary.approvedToday, '/enrollments?status=APPROVED'],
+            ['Rejected today', summary.rejectedToday, '/enrollments?status=REJECTED'],
+            ['Crew members', summary.crewMembers, '/users?role=CREW_USER'],
+          ] as const
+        ).map(([label, value, href]) => (
+          <Link key={label} href={href} className="rounded-xl border bg-card p-5">
+            <p className="text-sm text-muted-foreground">{label}</p>
+            <p className="mt-2 text-3xl font-semibold tracking-tight">{value}</p>
+          </Link>
+        ))}
+      </div>
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {cards.map(([label, value]) => (
           <article key={label} className="rounded-xl border bg-card p-5">
@@ -120,7 +142,7 @@ export function DivisionDashboard() {
             <li>Online lobbies — included</li>
             <li>Live session — not enabled</li>
             <li>Face detection — not enabled</li>
-            <li>Form submission — not enabled</li>
+            <li>Form submission — included</li>
             <li>AI monitor — not enabled</li>
           </ul>
         </article>

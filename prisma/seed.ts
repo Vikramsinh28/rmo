@@ -49,6 +49,63 @@ async function main() {
     await prisma.user.create({ data: adminData });
   }
 
+  const admin = await prisma.user.findFirst({ where: { loginId: DEV_LOGIN_ID } });
+  const enrollmentForm = await prisma.form.findFirst({ where: { purpose: 'CREW_ENROLLMENT' } });
+  if (admin && !enrollmentForm) {
+    const form = await prisma.form.create({
+      data: {
+        name: 'Crew Enrollment',
+        description: 'Additional questions for a crew enrollment request.',
+        purpose: 'CREW_ENROLLMENT',
+        status: 'PUBLISHED',
+        createdById: admin.id,
+      },
+    });
+    const version = await prisma.formVersion.create({
+      data: {
+        formId: form.id,
+        versionNumber: 1,
+        status: 'PUBLISHED',
+        createdById: admin.id,
+        schema: {
+          sections: ['Enrollment questions'],
+          fields: [
+            {
+              id: 'years_of_service',
+              key: 'years_of_service',
+              label: 'Years of service',
+              type: 'NUMBER',
+              required: false,
+              placeholder: '',
+              helpText: '',
+              options: [],
+              validation: {},
+              displayOrder: 0,
+              section: 'Enrollment questions',
+            },
+            {
+              id: 'remarks',
+              key: 'remarks',
+              label: 'Anything else the division should know',
+              type: 'TEXTAREA',
+              required: false,
+              placeholder: '',
+              helpText: '',
+              options: [],
+              validation: {},
+              displayOrder: 1,
+              section: 'Enrollment questions',
+            },
+          ],
+        },
+      },
+    });
+    await prisma.form.update({
+      where: { id: form.id },
+      data: { currentVersionId: version.id },
+    });
+  }
+
   console.log(`Seeded local system admin ${DEV_LOGIN_ID} / ${DEV_EMAIL}`);
   await prisma.$disconnect();
 }

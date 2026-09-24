@@ -94,6 +94,12 @@ model User {
   homeDivision       Division?           @relation("HomeDivision", fields: [homeDivisionId], references: [id])
   homeLobby          Lobby?              @relation("HomeLobby", fields: [homeLobbyId], references: [id])
   auditLogs          AuditLog[]
+  formsCreated       Form[]              @relation("FormCreator")
+  formVersionsCreated FormVersion[]      @relation("FormVersionCreator")
+  registersCreated   Register[]          @relation("RegisterCreator")
+  submissionsAuthored Submission[]       @relation("SubmissionAuthor")
+  enrollmentsReviewed CrewEnrollment[]   @relation("EnrollmentReviewer")
+  sourceEnrollment   CrewEnrollment?     @relation("EnrollmentAccount")
 
   @@index([rmoRole])
   @@index([accountStatus])
@@ -316,6 +322,7 @@ model Zone {
 
   divisions Division[]
   homeUsers User[]     @relation("HomeZone")
+  crewEnrollments CrewEnrollment[]
 
   @@index([status])
 }
@@ -329,9 +336,14 @@ model Division {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
-  zone      Zone      @relation(fields: [zoneId], references: [id])
-  lobbies   Lobby[]
-  homeUsers User[]    @relation("HomeDivision")
+  zone            Zone             @relation(fields: [zoneId], references: [id])
+  lobbies         Lobby[]
+  homeUsers       User[]           @relation("HomeDivision")
+  forms           Form[]
+  formAssignments FormAssignment[]
+  registers       Register[]
+  submissions     Submission[]
+  crewEnrollments CrewEnrollment[]
 
   @@unique([zoneId, code])
   @@index([zoneId])
@@ -347,9 +359,12 @@ model Lobby {
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
 
-  division   Division  @relation(fields: [divisionId], references: [id])
-  homeUsers  User[]    @relation("HomeLobby")
-  devices    Device[]
+  division        Division         @relation(fields: [divisionId], references: [id])
+  homeUsers       User[]           @relation("HomeLobby")
+  devices         Device[]
+  formAssignments FormAssignment[]
+  submissions     Submission[]
+  crewEnrollments CrewEnrollment[]
 
   @@unique([divisionId, code])
   @@index([divisionId])
@@ -377,6 +392,190 @@ model Device {
   @@index([lobbyId])
   @@index([deviceType])
   @@index([isActive])
+}
+
+enum FormStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum FormPurpose {
+  GENERAL
+  CREW_ENROLLMENT
+}
+
+enum FormVersionStatus {
+  DRAFT
+  PUBLISHED
+  SUPERSEDED
+}
+
+enum RegisterStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum SubmissionStatus {
+  PENDING
+  COMPLETED
+}
+
+enum EnrollmentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+model Form {
+  id               Int        @id @default(autoincrement())
+  name             String
+  description      String     @default("")
+  divisionId       Int?
+  status           FormStatus  @default(DRAFT)
+  purpose          FormPurpose @default(GENERAL)
+  currentVersionId Int?        @unique
+  createdById      Int
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
+  division        Division?        @relation(fields: [divisionId], references: [id])
+  createdBy       User             @relation("FormCreator", fields: [createdById], references: [id])
+  currentVersion  FormVersion?     @relation("CurrentFormVersion", fields: [currentVersionId], references: [id], onDelete: SetNull)
+  versions        FormVersion[]    @relation("FormVersions")
+  assignments     FormAssignment[]
+  registers       Register[]
+  submissions     Submission[]
+  crewEnrollments CrewEnrollment[]
+
+  @@index([divisionId])
+  @@index([status])
+  @@index([purpose])
+  @@index([createdById])
+}
+
+model FormVersion {
+  id            Int               @id @default(autoincrement())
+  formId        Int
+  versionNumber Int
+  schema        Json
+  status        FormVersionStatus @default(DRAFT)
+  createdById   Int
+  createdAt     DateTime          @default(now())
+
+  form        Form         @relation("FormVersions", fields: [formId], references: [id])
+  createdBy   User         @relation("FormVersionCreator", fields: [createdById], references: [id])
+  currentFor  Form?            @relation("CurrentFormVersion")
+  submissions Submission[]
+  crewEnrollments CrewEnrollment[]
+
+  @@unique([formId, versionNumber])
+  @@index([formId])
+  @@index([status])
+}
+
+model FormAssignment {
+  id         Int      @id @default(autoincrement())
+  formId     Int
+  divisionId Int
+  lobbyId    Int?
+  createdAt  DateTime @default(now())
+
+  form     Form     @relation(fields: [formId], references: [id], onDelete: Cascade)
+  division Division @relation(fields: [divisionId], references: [id])
+  lobby    Lobby?   @relation(fields: [lobbyId], references: [id])
+
+  @@index([formId])
+  @@index([divisionId])
+  @@index([lobbyId])
+}
+
+model Register {
+  id          Int            @id @default(autoincrement())
+  name        String
+  description String         @default("")
+  divisionId  Int
+  formId      Int
+  status      RegisterStatus @default(ACTIVE)
+  createdById Int
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  division  Division @relation(fields: [divisionId], references: [id])
+  form      Form     @relation(fields: [formId], references: [id])
+  createdBy User     @relation("RegisterCreator", fields: [createdById], references: [id])
+
+  @@index([divisionId])
+  @@index([formId])
+  @@index([status])
+}
+
+model Submission {
+  id            Int              @id @default(autoincrement())
+  formId        Int
+  formVersionId Int
+  divisionId    Int
+  lobbyId       Int?
+  submittedById Int
+  submittedAt   DateTime         @default(now())
+  status        SubmissionStatus @default(COMPLETED)
+  answers       Json
+
+  form        Form        @relation(fields: [formId], references: [id])
+  formVersion FormVersion @relation(fields: [formVersionId], references: [id])
+  division    Division    @relation(fields: [divisionId], references: [id])
+  lobby       Lobby?      @relation(fields: [lobbyId], references: [id])
+  submittedBy User        @relation("SubmissionAuthor", fields: [submittedById], references: [id])
+  crewEnrollment CrewEnrollment?
+
+  @@index([formId])
+  @@index([formVersionId])
+  @@index([divisionId, submittedAt])
+  @@index([lobbyId])
+  @@index([submittedById])
+  @@index([status])
+}
+
+model CrewEnrollment {
+  id                  Int              @id @default(autoincrement())
+  publicCode          String           @unique
+  fullName            String
+  email               String
+  phone               String
+  employeeId          String
+  staffNumber         String
+  loginId             String
+  requestedZoneId     Int
+  requestedDivisionId Int
+  requestedLobbyId    Int
+  formId              Int?
+  formVersionId       Int?
+  formSubmissionId    Int?             @unique
+  answers             Json
+  status              EnrollmentStatus @default(PENDING)
+  passwordHash        String
+  reviewedById        Int?
+  reviewedAt          DateTime?
+  rejectionReason     String?
+  createdUserId       Int?             @unique
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+
+  requestedZone     Zone         @relation(fields: [requestedZoneId], references: [id])
+  requestedDivision Division     @relation(fields: [requestedDivisionId], references: [id])
+  requestedLobby    Lobby        @relation(fields: [requestedLobbyId], references: [id])
+  form              Form?        @relation(fields: [formId], references: [id])
+  formVersion       FormVersion? @relation(fields: [formVersionId], references: [id])
+  formSubmission    Submission?  @relation(fields: [formSubmissionId], references: [id])
+  reviewedBy        User?        @relation("EnrollmentReviewer", fields: [reviewedById], references: [id])
+  createdUser       User?        @relation("EnrollmentAccount", fields: [createdUserId], references: [id])
+
+  @@index([status])
+  @@index([requestedDivisionId, status])
+  @@index([email])
+  @@index([loginId])
+  @@index([createdAt])
 }
 
 model AuditLog {

@@ -7,6 +7,7 @@ import { homePathForRole } from '@/lib/rmo/access';
 import { authApi } from '@/services/api/auth';
 import { useAuthStore } from '@/store/auth';
 import { Eye, EyeOff } from 'lucide-react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { FormEvent, useState } from 'react';
 import { toast } from 'sonner';
@@ -120,6 +121,12 @@ export default function LoginPage() {
           <span className="relative">{pending ? 'Signing in…' : 'Sign In'}</span>
         </Button>
       </form>
+      <p className="mt-6 text-sm text-zinc-400">
+        Joining a division as crew?{' '}
+        <Link href="/enroll" className="font-medium text-orange-200 underline">
+          Crew enrollment
+        </Link>
+      </p>
     </div>
   );
 }

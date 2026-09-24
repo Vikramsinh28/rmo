@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { scopeForRole, type RmoRoleName } from '@/lib/rmo/access';
 import { toSessionClaims } from '@/lib/rmo/session-claims';
 import { OtpPurpose, UserRole } from '@/lib/prisma/generated/client';
+import { enrollmentLoginMessage } from '@/services/internal/rmo/crew-enrollment';
 import { comparePassword, hashPassword, validatePassword } from '@/lib/utils';
 import { emailOTPRepository } from '../../repositories/email-otp';
 import { createUser, getUserByEmail, updateUserByEmail } from '../../repositories/user';
@@ -192,9 +193,10 @@ export class AuthService {
       });
 
       if (!user) {
+        const enrollmentMessage = await enrollmentLoginMessage(identifier, password);
         return {
           success: false,
-          message: 'Invalid email or password.',
+          message: enrollmentMessage || 'Invalid email or password.',
         };
       }
 

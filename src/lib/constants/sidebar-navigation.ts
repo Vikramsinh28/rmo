@@ -4,7 +4,9 @@ import {
   Building2,
   Camera,
   ChartColumn,
+  ChartNoAxesCombined,
   CircleUser,
+  ClipboardList,
   ClipboardPen,
   DoorOpen,
   Inbox,
@@ -36,6 +38,9 @@ export interface NavigationSection {
 const SYSTEM = ['SYSTEM_ADMIN'];
 const DIVISION = [...SYSTEM, 'DIVISION_ADMIN', 'DIVISION_MONITOR'];
 const LOBBY = [...DIVISION, 'LOBBY_USER'];
+const FORM_ADMIN = ['SYSTEM_ADMIN', 'DIVISION_ADMIN'];
+const FORM_READ = [...FORM_ADMIN, 'DIVISION_MONITOR'];
+const FORM_USE = [...FORM_READ, 'LOBBY_USER', 'CREW_USER'];
 
 export const NAVIGATION_ITEMS: NavigationSection[] = [
   {
@@ -116,6 +121,12 @@ export const NAVIGATION_ITEMS: NavigationSection[] = [
         icon: Shield,
         roles: SYSTEM,
       },
+      {
+        title: 'Enrollments',
+        url: siteConfig.baseLinks.enrollments,
+        icon: ClipboardList,
+        roles: SYSTEM,
+      },
     ],
   },
   {
@@ -125,6 +136,12 @@ export const NAVIGATION_ITEMS: NavigationSection[] = [
         title: 'Users',
         url: siteConfig.baseLinks.users,
         icon: Users,
+        roles: ['DIVISION_ADMIN'],
+      },
+      {
+        title: 'Enrollments',
+        url: siteConfig.baseLinks.enrollments,
+        icon: ClipboardList,
         roles: ['DIVISION_ADMIN'],
       },
     ],
@@ -158,38 +175,31 @@ export const NAVIGATION_ITEMS: NavigationSection[] = [
     ],
   },
   {
-    label: 'Forms',
+    label: 'Records',
     items: [
       {
         title: 'Forms',
         url: siteConfig.baseLinks.forms,
         icon: ClipboardPen,
-        roles: ['DIVISION_ADMIN'],
-        hint: 'Next phase',
+        roles: FORM_USE,
       },
-    ],
-  },
-  {
-    label: 'Registers',
-    items: [
       {
         title: 'Registers',
         url: siteConfig.baseLinks.registers,
         icon: BookMarked,
-        roles: ['DIVISION_ADMIN'],
-        hint: 'Next phase',
+        roles: FORM_READ,
       },
-    ],
-  },
-  {
-    label: 'Submissions',
-    items: [
       {
         title: 'Submissions',
         url: siteConfig.baseLinks.submissions,
         icon: Inbox,
-        roles: ['DIVISION_ADMIN'],
-        hint: 'Next phase',
+        roles: FORM_USE,
+      },
+      {
+        title: 'Analytics',
+        url: siteConfig.baseLinks.analytics,
+        icon: ChartNoAxesCombined,
+        roles: FORM_ADMIN,
       },
     ],
   },
@@ -213,7 +223,5 @@ export const NAVIGATION_ITEMS: NavigationSection[] = [
 ];
 
 export const COMING_NEXT = [
-  { title: 'Forms', icon: ClipboardPen },
-  { title: 'Devices', icon: Camera },
-  { title: 'Live monitoring', icon: Tv },
+  { title: 'Live session', icon: Tv },
 ];

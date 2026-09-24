@@ -13,6 +13,7 @@ import {
   type RmoRoleName,
 } from '@/lib/rmo/access';
 import { RmoError } from '@/lib/rmo/errors';
+import { enrollmentCounts } from '@/services/internal/rmo/crew-enrollment';
 import { hashPassword, validatePassword } from '@/lib/utils';
 import { AccountStatus, OrgStatus, Prisma, RmoRole } from '@/lib/prisma/generated/client';
 
@@ -36,6 +37,7 @@ const userSelect = {
   homeLobby: {
     select: { id: true, name: true, code: true, divisionId: true, status: true },
   },
+  sourceEnrollment: { select: { id: true, publicCode: true, status: true } },
 } satisfies Prisma.UserSelect;
 
 export type Actor = {
@@ -782,6 +784,9 @@ export async function resetUserPassword(actor: Actor, id: number, password: stri
     if (!canAssignRole(actorRole, asRole(existing.rmoRole))) {
       throw new RmoError('You do not have permission to perform this action.', 403);
     }
+    if (existing.rmoRole === 'CREW_USER') {
+      throw new RmoError('A division admin cannot set a crew password.', 403);
+    }
   } else {
     assertSystem(actor);
   }
@@ -848,7 +853,7 @@ export async function divisionSummary(actor: Actor) {
   }
   const division = await getDivision(actor, actor.homeDivisionId);
   const divisionId = actor.homeDivisionId;
-  const [lobbies, users, activeUsers, disabledUsers, cameras, kiosks, activity] =
+  const [lobbies, users, activeUsers, disabledUsers, cameras, kiosks, activity, enrollment] =
     await Promise.all([
       prisma.lobby.count({ where: { divisionId } }),
       prisma.user.count({ where: { deletedAt: null, homeDivisionId: divisionId } }),
@@ -866,6 +871,7 @@ export async function divisionSummary(actor: Actor) {
         take: 8,
         include: { actor: { select: { id: true, name: true, loginId: true } } },
       }),
+      enrollmentCounts(divisionId),
     ]);
   return {
     division,
@@ -877,6 +883,7 @@ export async function divisionSummary(actor: Actor) {
     kiosks,
     health: null,
     activity,
+    ...enrollment,
   };
 }
 

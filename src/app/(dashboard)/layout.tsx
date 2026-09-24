@@ -29,12 +29,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const live = pathname === '/monitoring';
   return (
     <ThemeProvider defaultTheme="system" attribute="class">
-      <SidebarProvider defaultOpen={false}>
+      <SidebarProvider defaultOpen={false} className="h-svh overflow-hidden">
         <Sidebar />
-        <SidebarInset>
-          <div className="flex min-h-0 flex-1 flex-col bg-muted/40">
+        <SidebarInset className="min-h-0 overflow-hidden md:h-[calc(100svh-1rem)]">
+          <div className="flex h-full min-h-0 flex-1 flex-col bg-muted/40">
             {live ? null : <ConsoleHeader />}
-            <div className={live ? 'flex min-h-0 flex-1 flex-col' : 'flex min-h-0 flex-1 flex-col py-4'}>
+            <div className={live ? 'flex min-h-0 flex-1 flex-col' : 'flex min-h-0 flex-1 flex-col overflow-y-auto py-4'}>
               {children}
             </div>
           </div>

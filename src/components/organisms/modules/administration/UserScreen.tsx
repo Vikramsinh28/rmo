@@ -12,6 +12,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { RMO_ROLES, locationRequirement, type RmoRoleName } from '@/lib/rmo/access';
+import Link from 'next/link';
 import { FormEvent, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { apiRequest, StatusBadge } from './api';
@@ -38,6 +39,7 @@ interface UserRow {
   homeDivision?: { name: string } | null;
   homeLobby?: { name: string } | null;
   lastLoginAt?: string | null;
+  sourceEnrollment?: { id: number; publicCode: string; status: string } | null;
 }
 
 interface Page<T> {
@@ -500,6 +502,16 @@ export function UserScreen({
               <dt className="text-muted-foreground">Last login</dt>
               <dd>{viewing?.lastLoginAt ? new Date(viewing.lastLoginAt).toLocaleString() : 'Never'}</dd>
             </div>
+            {viewing?.sourceEnrollment ? (
+              <div className="col-span-2">
+                <dt className="text-muted-foreground">Enrollment</dt>
+                <dd>
+                  <Link className="underline" href={`/enrollments/${viewing.sourceEnrollment.id}`}>
+                    RMO-ENR-{viewing.sourceEnrollment.publicCode}
+                  </Link>
+                </dd>
+              </div>
+            ) : null}
           </dl>
         </DialogContent>
       </Dialog>

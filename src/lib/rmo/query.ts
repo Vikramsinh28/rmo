@@ -14,3 +14,27 @@ export function listQuery(request: NextRequest) {
     pageSize: params.get('pageSize') ? Number(params.get('pageSize')) : undefined,
   };
 }
+
+function optionalId(params: URLSearchParams, key: string): number | undefined {
+  const raw = params.get(key);
+  if (!raw) return undefined;
+  if (!/^\d+$/.test(raw)) return Number.NaN;
+  return Number(raw);
+}
+
+export function submissionQuery(request: NextRequest) {
+  const params = request.nextUrl.searchParams;
+  return {
+    search: params.get('search') || undefined,
+    status: params.get('status') || undefined,
+    divisionId: optionalId(params, 'divisionId'),
+    lobbyId: optionalId(params, 'lobbyId'),
+    formId: optionalId(params, 'formId'),
+    registerId: optionalId(params, 'registerId'),
+    userId: optionalId(params, 'userId'),
+    dateFrom: params.get('dateFrom') || undefined,
+    dateTo: params.get('dateTo') || undefined,
+    page: optionalId(params, 'page'),
+    pageSize: optionalId(params, 'pageSize'),
+  };
+}

@@ -32,10 +32,17 @@ const USER_ADMIN = [SYSTEM_ADMIN, DIVISION_ADMIN] as const;
 const DEVICE_ADMIN = USER_ADMIN;
 const DEVICE_READ = [...DEVICE_ADMIN, DIVISION_MONITOR] as const;
 const LOBBY_READ = [...DIVISION_READ, LOBBY_USER] as const;
+const FORM_ADMIN = [SYSTEM_ADMIN, DIVISION_ADMIN] as const;
+const FORM_READ = [...FORM_ADMIN, DIVISION_MONITOR] as const;
+const FORM_USE = [...FORM_READ, LOBBY_USER, CREW_USER] as const;
+const FORM_SUBMIT = [LOBBY_USER, CREW_USER] as const;
+const ENROLLMENT_READ = [SYSTEM_ADMIN, DIVISION_ADMIN] as const;
+const ENROLLMENT_DECIDE = [DIVISION_ADMIN] as const;
 
 export const ALL_ROUTES: RouteConfig[] = [
   { path: '/', isPublic: true },
   { path: '/login', isPublic: true },
+  { path: '/enroll', isPublic: true },
   { path: '/sitemap.xml', isPublic: true },
   { path: '/robots.txt', isPublic: true },
   { path: '/api/health', isPublic: true },
@@ -65,11 +72,18 @@ export const ALL_ROUTES: RouteConfig[] = [
   { path: '/audit', isPublic: false, accessTo: { GET: [...ORG_ADMIN] } },
   { path: '/crew', isPublic: false, accessTo: { GET: [CREW_USER, ...ORG_ADMIN] } },
   { path: '/monitoring', isPublic: false, accessTo: { GET: [...DIVISION_READ] } },
-  { path: '/forms', isPublic: false, accessTo: { GET: [...DEVICE_ADMIN] } },
+  { path: '/forms', isPublic: false, accessTo: { GET: [...FORM_USE] } },
+  { path: '/forms/new', isPublic: false, accessTo: { GET: [...FORM_ADMIN] } },
+  { path: '/forms/[id]/fill', isPublic: false, accessTo: { GET: [...FORM_USE] } },
+  { path: '/forms/[id]', isPublic: false, accessTo: { GET: [...FORM_USE] } },
   { path: '/devices', isPublic: false, accessTo: { GET: [...DEVICE_ADMIN] } },
   { path: '/lobbies/[id]', isPublic: false, accessTo: { GET: [...DIVISION_READ] } },
-  { path: '/registers', isPublic: false, accessTo: { GET: [...DEVICE_ADMIN] } },
-  { path: '/submissions', isPublic: false, accessTo: { GET: [...DEVICE_ADMIN] } },
+  { path: '/registers', isPublic: false, accessTo: { GET: [...FORM_READ] } },
+  { path: '/submissions', isPublic: false, accessTo: { GET: [...FORM_USE] } },
+  { path: '/submissions/[id]', isPublic: false, accessTo: { GET: [...FORM_USE] } },
+  { path: '/analytics', isPublic: false, accessTo: { GET: [...FORM_ADMIN] } },
+  { path: '/enrollments', isPublic: false, accessTo: { GET: [...ENROLLMENT_READ] } },
+  { path: '/enrollments/[id]', isPublic: false, accessTo: { GET: [...ENROLLMENT_READ] } },
   { path: '/safety-events', isPublic: false, accessTo: { GET: [...ORG_ADMIN] } },
   { path: '/settings', isPublic: false, accessTo: { GET: [...SIGNED_IN] } },
 
@@ -192,5 +206,93 @@ export const ALL_ROUTES: RouteConfig[] = [
     path: '/api/admin/dashboard',
     isPublic: false,
     accessTo: { GET: [...SIGNED_IN] },
+  },
+  {
+    path: '/api/admin/forms',
+    isPublic: false,
+    accessTo: { GET: [...FORM_USE], POST: [...FORM_ADMIN] },
+  },
+  {
+    path: '/api/admin/forms/[id]',
+    isPublic: false,
+    accessTo: { GET: [...FORM_USE], PATCH: [...FORM_ADMIN] },
+  },
+  {
+    path: '/api/admin/forms/[id]/publish',
+    isPublic: false,
+    accessTo: { POST: [...FORM_ADMIN] },
+  },
+  {
+    path: '/api/admin/forms/[id]/archive',
+    isPublic: false,
+    accessTo: { POST: [...FORM_ADMIN] },
+  },
+  {
+    path: '/api/admin/forms/[id]/versions',
+    isPublic: false,
+    accessTo: { POST: [...FORM_ADMIN] },
+  },
+  {
+    path: '/api/admin/registers',
+    isPublic: false,
+    accessTo: { GET: [...FORM_READ], POST: [...FORM_ADMIN] },
+  },
+  {
+    path: '/api/admin/registers/[id]',
+    isPublic: false,
+    accessTo: { GET: [...FORM_READ], PATCH: [...FORM_ADMIN] },
+  },
+  {
+    path: '/api/submissions/export',
+    isPublic: false,
+    accessTo: { GET: [...FORM_ADMIN] },
+  },
+  {
+    path: '/api/submissions',
+    isPublic: false,
+    accessTo: { GET: [...FORM_USE], POST: [...FORM_SUBMIT] },
+  },
+  {
+    path: '/api/submissions/[id]',
+    isPublic: false,
+    accessTo: { GET: [...FORM_USE], PATCH: [...FORM_ADMIN] },
+  },
+  {
+    path: '/api/analytics/submissions',
+    isPublic: false,
+    accessTo: { GET: [...FORM_ADMIN] },
+  },
+  {
+    path: '/api/analytics/forms',
+    isPublic: false,
+    accessTo: { GET: [...FORM_ADMIN] },
+  },
+  {
+    path: '/api/analytics/lobbies',
+    isPublic: false,
+    accessTo: { GET: [...FORM_ADMIN] },
+  },
+  { path: '/api/enrollment/options', isPublic: true },
+  { path: '/api/enrollment/crew', isPublic: true },
+  { path: '/api/enrollment/crew/[code]/status', isPublic: true },
+  {
+    path: '/api/admin/crew-enrollments',
+    isPublic: false,
+    accessTo: { GET: [...ENROLLMENT_READ] },
+  },
+  {
+    path: '/api/admin/crew-enrollments/[id]/approve',
+    isPublic: false,
+    accessTo: { POST: [...ENROLLMENT_DECIDE] },
+  },
+  {
+    path: '/api/admin/crew-enrollments/[id]/reject',
+    isPublic: false,
+    accessTo: { POST: [...ENROLLMENT_DECIDE] },
+  },
+  {
+    path: '/api/admin/crew-enrollments/[id]',
+    isPublic: false,
+    accessTo: { GET: [...ENROLLMENT_READ] },
   },
 ] as const;

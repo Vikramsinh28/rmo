@@ -1,10 +1,12 @@
-import { ModulePlaceholder } from '@/components/organisms/shared/ModulePlaceholder';
+'use client';
+
+import { SubmissionListScreen } from '@/components/organisms/modules/forms/SubmissionListScreen';
+import { Suspense } from 'react';
 
 export default function SubmissionsPage() {
   return (
-    <ModulePlaceholder
-      title="Submissions"
-      description="Submissions are not part of this phase."
-    />
+    <Suspense fallback={<p className="px-4 text-sm text-muted-foreground">Loading submissions…</p>}>
+      <SubmissionListScreen />
+    </Suspense>
   );
 }

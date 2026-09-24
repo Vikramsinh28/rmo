@@ -17,6 +17,8 @@ export const siteConfig = {
     devices: '/devices',
     registers: '/registers',
     submissions: '/submissions',
+    analytics: '/analytics',
+    enrollments: '/enrollments',
     safetyEvents: '/safety-events',
     settings: '/settings',
   },
