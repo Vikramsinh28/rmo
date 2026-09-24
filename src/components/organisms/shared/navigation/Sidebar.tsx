@@ -11,6 +11,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarRail,
 } from '@/components/ui/sidebar';
 import { NAVIGATION_ITEMS } from '@/lib/constants/sidebar-navigation';
 import { useAuthStore } from '@/store/auth';
@@ -36,7 +37,7 @@ export function Sidebar() {
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton asChild size="lg">
-              <Link href={siteConfig.baseLinks.overview}>
+              <Link href={siteConfig.baseLinks.overview} title="RMO">
                 <img src="/logos/rmo-logo.png" alt="RMO" className="h-8 w-auto object-contain" />
               </Link>
             </SidebarMenuButton>
@@ -59,7 +60,7 @@ export function Sidebar() {
                 {items.map(item => (
                   <SidebarMenuItem key={item.url}>
                     <SidebarMenuButton asChild isActive={isActive(item.url)} tooltip={item.title}>
-                      <Link href={item.url}>
+                      <Link href={item.url} title={item.title}>
                         <item.icon />
                         <span>{item.title}</span>
                       </Link>
@@ -70,22 +71,11 @@ export function Sidebar() {
             </SidebarGroup>
           );
         })}
-        {userRole === 'SYSTEM_ADMIN' || userRole === 'DIVISION_MONITOR' ? (
-          <SidebarGroup>
-            <SidebarGroupLabel>Next phase</SidebarGroupLabel>
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton disabled tooltip="Coming in next phase">
-                  <span>Live monitoring</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </SidebarMenu>
-          </SidebarGroup>
-        ) : null}
       </SidebarContent>
       <SidebarFooter>
         <UserProfileDropdown />
       </SidebarFooter>
+      <SidebarRail />
     </ShadcnSidebar>
   );
 }

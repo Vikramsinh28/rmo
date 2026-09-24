@@ -75,6 +75,7 @@ export function UserScreen({
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('');
   const [role, setRole] = useState('');
+  const [lobbyId, setLobbyId] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -84,6 +85,7 @@ export function UserScreen({
   const [zones, setZones] = useState<Location[]>([]);
   const [divisions, setDivisions] = useState<Location[]>([]);
   const [lobbies, setLobbies] = useState<Location[]>([]);
+  const [filterLobbies, setFilterLobbies] = useState<Location[]>([]);
   const [confirmDisable, setConfirmDisable] = useState<UserRow | null>(null);
   const [viewing, setViewing] = useState<UserRow | null>(null);
   const assignableRoles = actorRole === 'DIVISION_ADMIN' ? MANAGED_ROLES : RMO_ROLES;
@@ -95,6 +97,7 @@ export function UserScreen({
     if (search) params.set('search', search);
     if (status) params.set('status', status);
     if (role) params.set('role', role);
+    if (lobbyId) params.set('lobbyId', lobbyId);
     apiRequest<Page<UserRow>>(`/api/admin/users?${params.toString()}`)
       .then(setPage)
       .catch(cause => setError(cause instanceof Error ? cause.message : 'Unable to load'))
@@ -104,7 +107,13 @@ export function UserScreen({
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPage, status, role]);
+  }, [currentPage, status, role, lobbyId]);
+
+  useEffect(() => {
+    apiRequest<Page<Location>>('/api/admin/lobbies?pageSize=50')
+      .then(result => setFilterLobbies(result.items))
+      .catch(() => setFilterLobbies([]));
+  }, []);
 
   useEffect(() => {
     if (!canWrite || lockedDivision) return;
@@ -236,6 +245,20 @@ export function UserScreen({
             <option key={item} value={item}>
               {item}
             </option>
+          ))}
+        </select>
+        <select
+          aria-label="Lobby filter"
+          className="h-9 rounded-md border bg-background px-3 text-sm"
+          value={lobbyId}
+          onChange={event => {
+            setLobbyId(event.target.value);
+            setCurrentPage(1);
+          }}
+        >
+          <option value="">All lobbies</option>
+          {filterLobbies.map(lobby => (
+            <option key={lobby.id} value={lobby.id}>{lobby.name}</option>
           ))}
         </select>
         <select

@@ -34,6 +34,7 @@ export async function cleanupDatabase() {
       await tx.file.deleteMany({});
       await tx.package.deleteMany({});
       await tx.user.deleteMany({});
+      await tx.device.deleteMany({});
       await tx.lobby.deleteMany({});
       await tx.division.deleteMany({});
       await tx.zone.deleteMany({});

@@ -1,10 +1,9 @@
-import { ModulePlaceholder } from '@/components/organisms/shared/ModulePlaceholder';
+import { LiveWorkspace } from '@/components/organisms/modules/administration/LiveWorkspace';
 
 export default function MonitoringPage() {
   return (
-    <ModulePlaceholder
-      title="Monitoring"
-      description="Live monitoring comes in the next phase. This account is scoped to its division."
-    />
+    <div className="flex min-h-0 flex-1">
+      <LiveWorkspace />
+    </div>
   );
 }

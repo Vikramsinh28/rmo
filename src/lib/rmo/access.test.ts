@@ -22,7 +22,7 @@ describe('RMO access rules', () => {
   it('routes each role to its dashboard', () => {
     expect(homePathForRole('SYSTEM_ADMIN')).toBe('/overview');
     expect(homePathForRole('SUPER_ADMIN')).toBe('/overview');
-    expect(homePathForRole('DIVISION_ADMIN')).toBe('/divisions');
+    expect(homePathForRole('DIVISION_ADMIN')).toBe('/monitoring');
     expect(homePathForRole('DIVISION_MONITOR')).toBe('/monitoring');
     expect(homePathForRole('LOBBY_USER')).toBe('/lobbies');
     expect(homePathForRole('CREW_USER')).toBe('/crew');

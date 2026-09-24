@@ -29,6 +29,8 @@ const SIGNED_IN = [
 const ORG_ADMIN = [SYSTEM_ADMIN] as const;
 const DIVISION_READ = [SYSTEM_ADMIN, DIVISION_ADMIN, DIVISION_MONITOR] as const;
 const USER_ADMIN = [SYSTEM_ADMIN, DIVISION_ADMIN] as const;
+const DEVICE_ADMIN = USER_ADMIN;
+const DEVICE_READ = [...DEVICE_ADMIN, DIVISION_MONITOR] as const;
 const LOBBY_READ = [...DIVISION_READ, LOBBY_USER] as const;
 
 export const ALL_ROUTES: RouteConfig[] = [
@@ -62,9 +64,12 @@ export const ALL_ROUTES: RouteConfig[] = [
   { path: '/roles', isPublic: false, accessTo: { GET: [...ORG_ADMIN] } },
   { path: '/audit', isPublic: false, accessTo: { GET: [...ORG_ADMIN] } },
   { path: '/crew', isPublic: false, accessTo: { GET: [CREW_USER, ...ORG_ADMIN] } },
-  { path: '/monitoring', isPublic: false, accessTo: { GET: [DIVISION_MONITOR, ...ORG_ADMIN] } },
-  { path: '/forms', isPublic: false, accessTo: { GET: [...ORG_ADMIN] } },
-  { path: '/devices', isPublic: false, accessTo: { GET: [...ORG_ADMIN] } },
+  { path: '/monitoring', isPublic: false, accessTo: { GET: [...DIVISION_READ] } },
+  { path: '/forms', isPublic: false, accessTo: { GET: [...DEVICE_ADMIN] } },
+  { path: '/devices', isPublic: false, accessTo: { GET: [...DEVICE_ADMIN] } },
+  { path: '/lobbies/[id]', isPublic: false, accessTo: { GET: [...DIVISION_READ] } },
+  { path: '/registers', isPublic: false, accessTo: { GET: [...DEVICE_ADMIN] } },
+  { path: '/submissions', isPublic: false, accessTo: { GET: [...DEVICE_ADMIN] } },
   { path: '/safety-events', isPublic: false, accessTo: { GET: [...ORG_ADMIN] } },
   { path: '/settings', isPublic: false, accessTo: { GET: [...SIGNED_IN] } },
 
@@ -152,6 +157,26 @@ export const ALL_ROUTES: RouteConfig[] = [
     path: '/api/admin/lobbies/[id]',
     isPublic: false,
     accessTo: { GET: [...LOBBY_READ], PATCH: [...ORG_ADMIN] },
+  },
+  {
+    path: '/api/admin/devices',
+    isPublic: false,
+    accessTo: { GET: [...DEVICE_READ], POST: [...DEVICE_ADMIN] },
+  },
+  {
+    path: '/api/admin/devices/[id]',
+    isPublic: false,
+    accessTo: { PATCH: [...DEVICE_ADMIN] },
+  },
+  {
+    path: '/api/admin/devices/[id]/enable',
+    isPublic: false,
+    accessTo: { POST: [...DEVICE_ADMIN] },
+  },
+  {
+    path: '/api/admin/devices/[id]/disable',
+    isPublic: false,
+    accessTo: { POST: [...DEVICE_ADMIN] },
   },
   {
     path: '/api/admin/roles',

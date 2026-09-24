@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@/components/ui/button';
+import Link from 'next/link';
 import {
   Dialog,
   DialogContent,
@@ -211,7 +212,9 @@ export function OrgScreen({ kind, canWrite }: { kind: Kind; canWrite: boolean })
                   <th className="px-4 py-3 font-medium">Code</th>
                   {kind !== 'zones' ? <th className="px-4 py-3 font-medium">Parent</th> : null}
                   <th className="px-4 py-3 font-medium">Status</th>
-                  {canWrite ? <th className="px-4 py-3 font-medium">Actions</th> : null}
+                  {canWrite || kind === 'lobbies' ? (
+                    <th className="px-4 py-3 font-medium">Actions</th>
+                  ) : null}
                 </tr>
               </thead>
               <tbody>
@@ -227,15 +230,24 @@ export function OrgScreen({ kind, canWrite }: { kind: Kind; canWrite: boolean })
                     <td className="px-4 py-3">
                       <StatusBadge status={row.status} />
                     </td>
-                    {canWrite ? (
+                    {canWrite || kind === 'lobbies' ? (
                       <td className="px-4 py-3">
                         <div className="flex gap-2">
-                          <Button variant="outline" className="h-8" onClick={() => openEdit(row)}>
-                            Edit
-                          </Button>
-                          <Button variant="outline" className="h-8" onClick={() => toggle(row)}>
-                            {row.status === 'ACTIVE' ? 'Disable' : 'Enable'}
-                          </Button>
+                          {kind === 'lobbies' ? (
+                            <Button variant="outline" className="h-8" asChild>
+                              <Link href={`/lobbies/${row.id}`}>View</Link>
+                            </Button>
+                          ) : null}
+                          {canWrite ? (
+                            <>
+                              <Button variant="outline" className="h-8" onClick={() => openEdit(row)}>
+                                Edit
+                              </Button>
+                              <Button variant="outline" className="h-8" onClick={() => toggle(row)}>
+                                {row.status === 'ACTIVE' ? 'Disable' : 'Enable'}
+                              </Button>
+                            </>
+                          ) : null}
                         </div>
                       </td>
                     ) : null}

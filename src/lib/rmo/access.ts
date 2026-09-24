@@ -58,7 +58,7 @@ export function homePathForRole(role: string | null | undefined): string {
     case 'SUPER_ADMIN':
       return '/overview';
     case 'DIVISION_ADMIN':
-      return '/divisions';
+      return '/monitoring';
     case 'DIVISION_MONITOR':
       return '/monitoring';
     case 'LOBBY_USER':

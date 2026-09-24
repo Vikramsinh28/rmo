@@ -4,6 +4,7 @@ import { Sidebar } from '@/components/organisms/shared/navigation/Sidebar';
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
 import { useAuthStore } from '@/store/auth';
 import { ThemeProvider } from 'next-themes';
+import { usePathname } from 'next/navigation';
 
 function ConsoleHeader() {
   const user = useAuthStore(state => state.user);
@@ -24,14 +25,18 @@ function ConsoleHeader() {
 }
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const live = pathname === '/monitoring';
   return (
     <ThemeProvider defaultTheme="system" attribute="class">
-      <SidebarProvider>
+      <SidebarProvider defaultOpen={false}>
         <Sidebar />
         <SidebarInset>
-          <div className="flex flex-1 flex-col bg-muted/40">
-            <ConsoleHeader />
-            <div className="flex flex-1 flex-col gap-2 py-4">{children}</div>
+          <div className="flex min-h-0 flex-1 flex-col bg-muted/40">
+            {live ? null : <ConsoleHeader />}
+            <div className={live ? 'flex min-h-0 flex-1 flex-col' : 'flex min-h-0 flex-1 flex-col py-4'}>
+              {children}
+            </div>
           </div>
         </SidebarInset>
       </SidebarProvider>

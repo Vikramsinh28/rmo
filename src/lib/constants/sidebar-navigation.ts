@@ -1,16 +1,22 @@
 import { siteConfig } from '@/app/siteConfig';
 import {
+  BookMarked,
   Building2,
-  ClipboardList,
+  Camera,
+  ChartColumn,
+  CircleUser,
+  ClipboardPen,
+  DoorOpen,
+  Inbox,
   LayoutDashboard,
   MapPinned,
-  Monitor,
-  Radio,
   ScrollText,
   Settings,
   Shield,
-  TrainFront,
+  TabletSmartphone,
+  Tv,
   Users,
+  Warehouse,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -33,37 +39,41 @@ const LOBBY = [...DIVISION, 'LOBBY_USER'];
 
 export const NAVIGATION_ITEMS: NavigationSection[] = [
   {
+    label: 'Live',
+    items: [
+      {
+        title: 'Live',
+        url: siteConfig.baseLinks.monitoring,
+        icon: Tv,
+        roles: DIVISION,
+      },
+    ],
+  },
+  {
     label: 'Dashboard',
     items: [
       {
         title: 'Dashboard',
         url: siteConfig.baseLinks.overview,
         icon: LayoutDashboard,
-        roles: [...SYSTEM, 'SUPER_ADMIN', 'DIVISION_ADMIN', 'LOBBY_USER'],
+        roles: [...SYSTEM, 'SUPER_ADMIN', 'LOBBY_USER'],
       },
       {
-        title: 'Division',
-        url: siteConfig.baseLinks.divisions,
-        icon: TrainFront,
+        title: 'Summary',
+        url: siteConfig.baseLinks.overview,
+        icon: ChartColumn,
         roles: ['DIVISION_ADMIN'],
-      },
-      {
-        title: 'Monitoring',
-        url: siteConfig.baseLinks.monitoring,
-        icon: Monitor,
-        roles: ['DIVISION_MONITOR'],
-        hint: 'Coming in next phase',
       },
       {
         title: 'My lobby',
         url: siteConfig.baseLinks.lobbies,
-        icon: Radio,
+        icon: DoorOpen,
         roles: ['LOBBY_USER'],
       },
       {
         title: 'My account',
         url: siteConfig.baseLinks.crew,
-        icon: Users,
+        icon: CircleUser,
         roles: ['CREW_USER'],
       },
     ],
@@ -86,8 +96,8 @@ export const NAVIGATION_ITEMS: NavigationSection[] = [
       {
         title: 'Lobbies',
         url: siteConfig.baseLinks.lobbies,
-        icon: Radio,
-        roles: [...SYSTEM, 'DIVISION_ADMIN', 'DIVISION_MONITOR'],
+        icon: Warehouse,
+        roles: [...SYSTEM, 'DIVISION_MONITOR'],
       },
     ],
   },
@@ -98,13 +108,88 @@ export const NAVIGATION_ITEMS: NavigationSection[] = [
         title: 'Users',
         url: siteConfig.baseLinks.users,
         icon: Users,
-        roles: [...SYSTEM, 'DIVISION_ADMIN'],
+        roles: SYSTEM,
       },
       {
         title: 'Roles',
         url: siteConfig.baseLinks.roles,
         icon: Shield,
         roles: SYSTEM,
+      },
+    ],
+  },
+  {
+    label: 'People',
+    items: [
+      {
+        title: 'Users',
+        url: siteConfig.baseLinks.users,
+        icon: Users,
+        roles: ['DIVISION_ADMIN'],
+      },
+    ],
+  },
+  {
+    label: 'Lobbies',
+    items: [
+      {
+        title: 'Lobbies',
+        url: siteConfig.baseLinks.lobbies,
+        icon: Warehouse,
+        roles: ['DIVISION_ADMIN'],
+      },
+    ],
+  },
+  {
+    label: 'Devices',
+    items: [
+      {
+        title: 'Cameras',
+        url: `${siteConfig.baseLinks.devices}?type=CAMERA`,
+        icon: Camera,
+        roles: [...SYSTEM, 'DIVISION_ADMIN'],
+      },
+      {
+        title: 'Kiosks',
+        url: `${siteConfig.baseLinks.devices}?type=KIOSK`,
+        icon: TabletSmartphone,
+        roles: [...SYSTEM, 'DIVISION_ADMIN'],
+      },
+    ],
+  },
+  {
+    label: 'Forms',
+    items: [
+      {
+        title: 'Forms',
+        url: siteConfig.baseLinks.forms,
+        icon: ClipboardPen,
+        roles: ['DIVISION_ADMIN'],
+        hint: 'Next phase',
+      },
+    ],
+  },
+  {
+    label: 'Registers',
+    items: [
+      {
+        title: 'Registers',
+        url: siteConfig.baseLinks.registers,
+        icon: BookMarked,
+        roles: ['DIVISION_ADMIN'],
+        hint: 'Next phase',
+      },
+    ],
+  },
+  {
+    label: 'Submissions',
+    items: [
+      {
+        title: 'Submissions',
+        url: siteConfig.baseLinks.submissions,
+        icon: Inbox,
+        roles: ['DIVISION_ADMIN'],
+        hint: 'Next phase',
       },
     ],
   },
@@ -128,7 +213,7 @@ export const NAVIGATION_ITEMS: NavigationSection[] = [
 ];
 
 export const COMING_NEXT = [
-  { title: 'Forms', icon: ClipboardList },
-  { title: 'Devices', icon: Radio },
-  { title: 'Live monitoring', icon: Monitor },
+  { title: 'Forms', icon: ClipboardPen },
+  { title: 'Devices', icon: Camera },
+  { title: 'Live monitoring', icon: Tv },
 ];

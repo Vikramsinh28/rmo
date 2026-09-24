@@ -349,10 +349,34 @@ model Lobby {
 
   division   Division  @relation(fields: [divisionId], references: [id])
   homeUsers  User[]    @relation("HomeLobby")
+  devices    Device[]
 
   @@unique([divisionId, code])
   @@index([divisionId])
   @@index([status])
+}
+
+enum DeviceType {
+  CAMERA
+  KIOSK
+}
+
+model Device {
+  id           Int        @id @default(autoincrement())
+  name         String
+  deviceType   DeviceType
+  lobbyId      Int
+  streamUrl    String
+  displayOrder Int        @default(0)
+  isActive     Boolean    @default(true)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  lobby Lobby @relation(fields: [lobbyId], references: [id])
+
+  @@index([lobbyId])
+  @@index([deviceType])
+  @@index([isActive])
 }
 
 model AuditLog {

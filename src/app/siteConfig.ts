@@ -15,6 +15,8 @@ export const siteConfig = {
     monitoring: '/monitoring',
     forms: '/forms',
     devices: '/devices',
+    registers: '/registers',
+    submissions: '/submissions',
     safetyEvents: '/safety-events',
     settings: '/settings',
   },

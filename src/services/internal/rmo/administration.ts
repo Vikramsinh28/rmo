@@ -52,6 +52,8 @@ type ListQuery = {
   status?: string;
   zoneId?: number;
   divisionId?: number;
+  lobbyId?: number;
+  role?: string;
   page?: number;
   pageSize?: number;
 };
@@ -511,6 +513,14 @@ export async function listUsers(actor: Actor, query: ListQuery & { role?: string
   if (!canAdminister(role)) {
     where.homeDivisionId = actor.homeDivisionId;
   }
+  if (query.lobbyId) {
+    const lobby = await prisma.lobby.findUnique({ where: { id: query.lobbyId } });
+    if (!lobby) throw new RmoError('Lobby was not found.', 400);
+    if (!canAdminister(role) && lobby.divisionId !== actor.homeDivisionId) {
+      throw new RmoError('You do not have permission to perform this action.', 403);
+    }
+    where.homeLobbyId = lobby.id;
+  }
   const [rows, total] = await Promise.all([
     prisma.user.findMany({ where, orderBy: { name: 'asc' }, skip, take, select: userSelect }),
     prisma.user.count({ where }),
@@ -552,6 +562,12 @@ export async function createDirectoryUser(actor: Actor, input: UserWriteInput) {
   if (!isRmoRole(input.rmoRole)) throw new RmoError('Role is not valid.', 400);
   if (!canAssignRole(actorRole, input.rmoRole)) {
     throw new RmoError('You do not have permission to assign this role.', 403);
+  }
+  if (canManageDivisionUsers(actorRole) && input.homeLobbyId) {
+    const lobby = await prisma.lobby.findUnique({ where: { id: input.homeLobbyId } });
+    if (!lobby || lobby.divisionId !== actor.homeDivisionId) {
+      throw new RmoError('You can only assign a lobby inside your division.', 403);
+    }
   }
   if (canManageDivisionUsers(actorRole)) {
     if (!actor.homeDivisionId || input.homeDivisionId !== actor.homeDivisionId) {
@@ -600,9 +616,16 @@ export async function createDirectoryUser(actor: Actor, input: UserWriteInput) {
       loginId,
       email,
       rmoRole: user.rmoRole,
+      divisionId: user.homeDivisionId,
       homeZoneId: user.homeZoneId,
       homeDivisionId: user.homeDivisionId,
       homeLobbyId: user.homeLobbyId,
+      after: {
+        rmoRole: user.rmoRole,
+        homeDivisionId: user.homeDivisionId,
+        homeLobbyId: user.homeLobbyId,
+        accountStatus: user.accountStatus,
+      },
     });
     return user;
   } catch (error) {
@@ -656,6 +679,16 @@ export async function updateDirectoryUser(
     throw new RmoError('You cannot move your own division assignment.', 403);
   }
 
+  if (
+    canManageDivisionUsers(actorRole) &&
+    input.homeLobbyId &&
+    input.homeLobbyId !== existing.homeLobbyId
+  ) {
+    const lobby = await prisma.lobby.findUnique({ where: { id: input.homeLobbyId } });
+    if (!lobby || lobby.divisionId !== actor.homeDivisionId) {
+      throw new RmoError('You can only assign a lobby inside your division.', 403);
+    }
+  }
   const nextRole = (input.rmoRole as RmoRoleName) || asRole(existing.rmoRole);
   if (
     canManageDivisionUsers(actorRole) &&
@@ -706,19 +739,34 @@ export async function updateDirectoryUser(
 
   if (input.rmoRole && input.rmoRole !== existing.rmoRole) {
     await audit(actor.id, 'user.role_changed', 'user', user.id, {
-      from: existing.rmoRole,
-      to: user.rmoRole,
+      divisionId: user.homeDivisionId,
+      before: { rmoRole: existing.rmoRole },
+      after: { rmoRole: user.rmoRole },
     });
   }
   if (status && status !== existing.accountStatus) {
     await audit(actor.id, status === 'DISABLED' ? 'user.disabled' : 'user.enabled', 'user', user.id, {
-      accountStatus: status,
+      divisionId: user.homeDivisionId,
+      before: { accountStatus: existing.accountStatus },
+      after: { accountStatus: status },
     });
   }
   await audit(actor.id, 'user.updated', 'user', user.id, {
-    name: user.name,
-    rmoRole: user.rmoRole,
-    accountStatus: user.accountStatus,
+    divisionId: user.homeDivisionId,
+    before: {
+      name: existing.name,
+      rmoRole: existing.rmoRole,
+      accountStatus: existing.accountStatus,
+      homeDivisionId: existing.homeDivisionId,
+      homeLobbyId: existing.homeLobbyId,
+    },
+    after: {
+      name: user.name,
+      rmoRole: user.rmoRole,
+      accountStatus: user.accountStatus,
+      homeDivisionId: user.homeDivisionId,
+      homeLobbyId: user.homeLobbyId,
+    },
   });
   return user;
 }
@@ -743,7 +791,10 @@ export async function resetUserPassword(actor: Actor, id: number, password: stri
   }
   const hashed = await hashPassword(password);
   await prisma.user.update({ where: { id }, data: { password: hashed } });
-  await audit(actor.id, 'user.password_reset', 'user', id, { loginId: existing.loginId });
+  await audit(actor.id, 'user.password_reset', 'user', id, {
+    divisionId: existing.homeDivisionId,
+    loginId: existing.loginId,
+  });
   return { id };
 }
 
@@ -796,11 +847,37 @@ export async function divisionSummary(actor: Actor) {
     throw new RmoError('You do not have permission to perform this action.', 403);
   }
   const division = await getDivision(actor, actor.homeDivisionId);
-  const [lobbies, users] = await Promise.all([
-    prisma.lobby.count({ where: { divisionId: division.id } }),
-    prisma.user.count({ where: { deletedAt: null, homeDivisionId: division.id } }),
-  ]);
-  return { division, lobbies, users };
+  const divisionId = actor.homeDivisionId;
+  const [lobbies, users, activeUsers, disabledUsers, cameras, kiosks, activity] =
+    await Promise.all([
+      prisma.lobby.count({ where: { divisionId } }),
+      prisma.user.count({ where: { deletedAt: null, homeDivisionId: divisionId } }),
+      prisma.user.count({
+        where: { deletedAt: null, homeDivisionId: divisionId, accountStatus: 'ACTIVE' },
+      }),
+      prisma.user.count({
+        where: { deletedAt: null, homeDivisionId: divisionId, accountStatus: 'DISABLED' },
+      }),
+      prisma.device.count({ where: { deviceType: 'CAMERA', lobby: { divisionId } } }),
+      prisma.device.count({ where: { deviceType: 'KIOSK', lobby: { divisionId } } }),
+      prisma.auditLog.findMany({
+        where: { metadata: { path: ['divisionId'], equals: divisionId } },
+        orderBy: { createdAt: 'desc' },
+        take: 8,
+        include: { actor: { select: { id: true, name: true, loginId: true } } },
+      }),
+    ]);
+  return {
+    division,
+    lobbies,
+    users,
+    activeUsers,
+    disabledUsers,
+    cameras,
+    kiosks,
+    health: null,
+    activity,
+  };
 }
 
 export { userSelect };
