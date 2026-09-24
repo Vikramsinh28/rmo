@@ -133,6 +133,6 @@ export default proxy;
 export const config = {
   matcher: [
     // Skip Next.js internals and all static files, unless found in search params
-    '/((?!sentry-tunnel|_next/static|_next/image|favicon.ico|favicon/|.*\\.(?:svg|png|jpg|jpeg|gif|webp|webmanifest)$).*)',
+    '/((?!sentry-tunnel|_next/static|_next/image|favicon.ico|favicon/|sw.js|offline.html|.*\\.(?:svg|png|jpg|jpeg|gif|webp|webmanifest)$).*)',
   ],
 };
