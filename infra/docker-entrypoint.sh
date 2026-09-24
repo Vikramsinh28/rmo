@@ -2,4 +2,4 @@
 set -e
 
 pnpm migrate:prod
-exec pnpm start -- --hostname 0.0.0.0 --port 3000
+exec ./node_modules/.bin/next start --hostname 0.0.0.0 --port 3000
