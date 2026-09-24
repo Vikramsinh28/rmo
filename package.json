@@ -75,6 +75,7 @@
     "dotenv": "^17.2.3",
     "hls.js": "^1.7.3",
     "jose": "^6.1.0",
+    "livekit-client": "^2.22.3",
     "lucide-react": "^0.533.0",
     "nanoid": "^5.1.6",
     "next": "16.0.10",

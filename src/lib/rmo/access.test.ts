@@ -24,7 +24,7 @@ describe('RMO access rules', () => {
     expect(homePathForRole('SUPER_ADMIN')).toBe('/overview');
     expect(homePathForRole('DIVISION_ADMIN')).toBe('/monitoring');
     expect(homePathForRole('DIVISION_MONITOR')).toBe('/monitoring');
-    expect(homePathForRole('LOBBY_USER')).toBe('/lobbies');
+    expect(homePathForRole('LOBBY_USER')).toBe('/monitoring/desk');
     expect(homePathForRole('CREW_USER')).toBe('/crew');
   });
 

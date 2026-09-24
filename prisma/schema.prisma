@@ -100,6 +100,11 @@ model User {
   submissionsAuthored Submission[]       @relation("SubmissionAuthor")
   enrollmentsReviewed CrewEnrollment[]   @relation("EnrollmentReviewer")
   sourceEnrollment   CrewEnrollment?     @relation("EnrollmentAccount")
+  monitoredCalls     LobbyCall[]         @relation("CallMonitor")
+  endedCalls         LobbyCall[]         @relation("CallEnder")
+  recordingsStarted  RecordingSegment[]  @relation("RecordingStarter")
+  recordingsStopped  RecordingSegment[]  @relation("RecordingStopper")
+  roomParticipants   RoomParticipant[]
 
   @@index([rmoRole])
   @@index([accountStatus])
@@ -344,6 +349,7 @@ model Division {
   registers       Register[]
   submissions     Submission[]
   crewEnrollments CrewEnrollment[]
+  lobbyCalls      LobbyCall[]
 
   @@unique([zoneId, code])
   @@index([zoneId])
@@ -365,6 +371,9 @@ model Lobby {
   formAssignments FormAssignment[]
   submissions     Submission[]
   crewEnrollments CrewEnrollment[]
+  room            LobbyRoom?
+  lobbyCalls      LobbyCall[]
+  recordingSegments RecordingSegment[]
 
   @@unique([divisionId, code])
   @@index([divisionId])
@@ -570,6 +579,7 @@ model CrewEnrollment {
   formSubmission    Submission?  @relation(fields: [formSubmissionId], references: [id])
   reviewedBy        User?        @relation("EnrollmentReviewer", fields: [reviewedById], references: [id])
   createdUser       User?        @relation("EnrollmentAccount", fields: [createdUserId], references: [id])
+  roomParticipants  RoomParticipant[]
 
   @@index([status])
   @@index([requestedDivisionId, status])
@@ -592,4 +602,147 @@ model AuditLog {
   @@index([actorId])
   @@index([createdAt])
   @@index([action])
+}
+
+enum LobbyRoomStatus {
+  ACTIVE
+  DISABLED
+}
+
+enum LobbyPresence {
+  ONLINE
+  OFFLINE
+  CONNECTING
+}
+
+enum LobbyCallStatus {
+  RINGING
+  CONNECTED
+  ENDED
+  FAILED
+  CANCELLED
+}
+
+enum CallConnection {
+  IDLE
+  CONNECTED
+  RECONNECTING
+  DISCONNECTED
+}
+
+enum ParticipantType {
+  DIVISION_MONITOR
+  LOBBY_USER
+  CREW_MEMBER
+}
+
+enum ParticipantStatus {
+  JOINED
+  LEFT
+}
+
+enum RecordingStatus {
+  RECORDING
+  COMPLETED
+  FAILED
+}
+
+model LobbyRoom {
+  id         Int             @id @default(autoincrement())
+  lobbyId    Int             @unique
+  roomKey    String          @unique
+  status     LobbyRoomStatus @default(ACTIVE)
+  presence   LobbyPresence   @default(OFFLINE)
+  lastSeenAt DateTime?
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+
+  lobby        Lobby             @relation(fields: [lobbyId], references: [id])
+  calls        LobbyCall[]
+  participants RoomParticipant[]
+
+  @@index([status])
+  @@index([presence])
+}
+
+model LobbyCall {
+  id            Int              @id @default(autoincrement())
+  roomId        Int
+  lobbyId       Int
+  divisionId    Int
+  monitorUserId Int
+  status        LobbyCallStatus  @default(RINGING)
+  connection    CallConnection   @default(IDLE)
+  startedAt     DateTime         @default(now())
+  acceptedAt    DateTime?
+  endedAt       DateTime?
+  endedById     Int?
+  endReason     String?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  room         LobbyRoom          @relation(fields: [roomId], references: [id])
+  lobby        Lobby              @relation(fields: [lobbyId], references: [id])
+  division     Division           @relation(fields: [divisionId], references: [id])
+  monitor      User               @relation("CallMonitor", fields: [monitorUserId], references: [id])
+  endedBy      User?              @relation("CallEnder", fields: [endedById], references: [id])
+  participants RoomParticipant[]
+  recordings   RecordingSegment[]
+
+  @@index([roomId])
+  @@index([lobbyId, status])
+  @@index([divisionId, status])
+  @@index([monitorUserId])
+  @@index([startedAt])
+}
+
+model RoomParticipant {
+  id               Int               @id @default(autoincrement())
+  roomId           Int
+  callId           Int
+  userId           Int?
+  crewEnrollmentId Int?
+  participantType  ParticipantType
+  status           ParticipantStatus @default(JOINED)
+  joinedAt         DateTime          @default(now())
+  leftAt           DateTime?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  room           LobbyRoom       @relation(fields: [roomId], references: [id])
+  call           LobbyCall       @relation(fields: [callId], references: [id])
+  user           User?           @relation(fields: [userId], references: [id])
+  crewEnrollment CrewEnrollment? @relation(fields: [crewEnrollmentId], references: [id])
+
+  @@index([callId, status])
+  @@index([roomId])
+  @@index([userId])
+  @@index([crewEnrollmentId])
+}
+
+model RecordingSegment {
+  id           Int             @id @default(autoincrement())
+  lobbyCallId  Int
+  roomId       Int
+  lobbyId      Int
+  startedById  Int
+  stoppedById  Int?
+  startedAt    DateTime        @default(now())
+  stoppedAt    DateTime?
+  duration     Int?
+  status       RecordingStatus @default(RECORDING)
+  storageKey   String?
+  fileSize     Int?
+  failureReason String?
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  call      LobbyCall @relation(fields: [lobbyCallId], references: [id])
+  lobby     Lobby     @relation(fields: [lobbyId], references: [id])
+  startedBy User      @relation("RecordingStarter", fields: [startedById], references: [id])
+  stoppedBy User?     @relation("RecordingStopper", fields: [stoppedById], references: [id])
+
+  @@index([lobbyCallId, status])
+  @@index([lobbyId])
+  @@index([startedAt])
 }

@@ -41,6 +41,7 @@ next-env.d.ts
 .env.sentry-build-plugin
 
 data/
+storage/recordings/
 
 src/lib/prisma/generated
 

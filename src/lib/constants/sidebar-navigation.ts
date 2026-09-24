@@ -18,6 +18,7 @@ import {
   TabletSmartphone,
   Tv,
   Users,
+  Video,
   Warehouse,
   type LucideIcon,
 } from 'lucide-react';
@@ -50,6 +51,30 @@ export const NAVIGATION_ITEMS: NavigationSection[] = [
         title: 'Live',
         url: siteConfig.baseLinks.monitoring,
         icon: Tv,
+        roles: DIVISION,
+      },
+      {
+        title: 'Lobby desk',
+        url: siteConfig.baseLinks.monitoringDesk,
+        icon: DoorOpen,
+        roles: ['LOBBY_USER', 'CREW_USER'],
+      },
+      {
+        title: 'Call history',
+        url: siteConfig.baseLinks.monitoringHistory,
+        icon: ScrollText,
+        roles: DIVISION,
+      },
+      {
+        title: 'Recordings',
+        url: siteConfig.baseLinks.monitoringRecordings,
+        icon: Video,
+        roles: DIVISION,
+      },
+      {
+        title: 'Cameras',
+        url: siteConfig.baseLinks.monitoringCameras,
+        icon: Camera,
         roles: DIVISION,
       },
     ],

@@ -47,7 +47,8 @@ export function Sidebar() {
       <SidebarContent>
         {NAVIGATION_ITEMS.map(section => {
           const items = section.items.filter(item => {
-            if (!item.roles || !userRole) return true;
+            if (!item.roles?.length) return true;
+            if (!userRole) return false;
             return item.roles.includes(userRole);
           });
 
@@ -58,7 +59,7 @@ export function Sidebar() {
               <SidebarGroupLabel>{section.label}</SidebarGroupLabel>
               <SidebarMenu>
                 {items.map(item => (
-                  <SidebarMenuItem key={item.url}>
+                  <SidebarMenuItem key={`${item.title}:${item.url}`}>
                     <SidebarMenuButton asChild isActive={isActive(item.url)} tooltip={item.title}>
                       <Link href={item.url} title={item.title}>
                         <item.icon />

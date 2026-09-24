@@ -20,5 +20,15 @@ services:
       timeout: 5s
       retries: 10
 
+  livekit:
+    image: livekit/livekit-server:v1.8.4
+    container_name: rmo-kostra-livekit
+    command: --dev --bind 0.0.0.0
+    ports:
+      - "7880:7880"
+      - "7881:7881"
+      - "7882:7882/udp"
+    restart: unless-stopped
+
 volumes:
   postgres_data:

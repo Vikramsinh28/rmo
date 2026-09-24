@@ -26,7 +26,10 @@ function ConsoleHeader() {
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const live = pathname === '/monitoring';
+  const live = pathname === '/monitoring'
+    || pathname === '/monitoring/desk'
+    || pathname === '/monitoring/cameras'
+    || pathname.startsWith('/monitoring/calls');
   return (
     <ThemeProvider defaultTheme="system" attribute="class">
       <SidebarProvider defaultOpen={false} className="h-svh overflow-hidden">

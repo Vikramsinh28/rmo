@@ -295,4 +295,133 @@ export const ALL_ROUTES: RouteConfig[] = [
     isPublic: false,
     accessTo: { GET: [...ENROLLMENT_READ] },
   },
+
+  { path: '/monitoring/cameras', isPublic: false, accessTo: { GET: [...DIVISION_READ] } },
+  { path: '/monitoring/history', isPublic: false, accessTo: { GET: [...DIVISION_READ] } },
+  { path: '/monitoring/recordings', isPublic: false, accessTo: { GET: [...DIVISION_READ] } },
+  { path: '/monitoring/desk', isPublic: false, accessTo: { GET: [LOBBY_USER, CREW_USER] } },
+  {
+    path: '/monitoring/calls/[id]',
+    isPublic: false,
+    accessTo: { GET: [...DIVISION_READ, LOBBY_USER, CREW_USER] },
+  },
+
+  {
+    path: '/api/monitoring/events',
+    isPublic: false,
+    accessTo: { GET: [...DIVISION_READ, LOBBY_USER, CREW_USER] },
+  },
+  {
+    path: '/api/monitoring/ice',
+    isPublic: false,
+    accessTo: { GET: [DIVISION_MONITOR, LOBBY_USER, CREW_USER] },
+  },
+  {
+    path: '/api/monitoring/presence',
+    isPublic: false,
+    accessTo: { POST: [LOBBY_USER] },
+  },
+  {
+    path: '/api/monitoring/history',
+    isPublic: false,
+    accessTo: { GET: [...DIVISION_READ] },
+  },
+  {
+    path: '/api/monitoring/lobbies',
+    isPublic: false,
+    accessTo: { GET: [...DIVISION_READ, LOBBY_USER, CREW_USER] },
+  },
+  {
+    path: '/api/monitoring/lobbies/[id]/call',
+    isPublic: false,
+    accessTo: { POST: [DIVISION_MONITOR] },
+  },
+  {
+    path: '/api/monitoring/lobbies/[id]',
+    isPublic: false,
+    accessTo: { GET: [...DIVISION_READ, LOBBY_USER, CREW_USER] },
+  },
+  {
+    path: '/api/monitoring/calls/[id]/accept',
+    isPublic: false,
+    accessTo: { POST: [LOBBY_USER] },
+  },
+  {
+    path: '/api/monitoring/calls/[id]/reject',
+    isPublic: false,
+    accessTo: { POST: [LOBBY_USER] },
+  },
+  {
+    path: '/api/monitoring/calls/[id]/end',
+    isPublic: false,
+    accessTo: { POST: [DIVISION_MONITOR, LOBBY_USER] },
+  },
+  {
+    path: '/api/monitoring/calls/[id]/connection',
+    isPublic: false,
+    accessTo: { POST: [DIVISION_MONITOR, LOBBY_USER, CREW_USER] },
+  },
+  {
+    path: '/api/monitoring/calls/[id]/token',
+    isPublic: false,
+    accessTo: { POST: [DIVISION_MONITOR, LOBBY_USER, CREW_USER] },
+  },
+  {
+    path: '/api/monitoring/calls/[id]/signal',
+    isPublic: false,
+    accessTo: {
+      GET: [DIVISION_MONITOR, LOBBY_USER, CREW_USER],
+      POST: [DIVISION_MONITOR, LOBBY_USER, CREW_USER],
+    },
+  },
+  {
+    path: '/api/monitoring/calls/[id]/participants/[participantId]/leave',
+    isPublic: false,
+    accessTo: { POST: [CREW_USER] },
+  },
+  {
+    path: '/api/monitoring/calls/[id]/participants',
+    isPublic: false,
+    accessTo: { GET: [...DIVISION_READ, LOBBY_USER, CREW_USER], POST: [CREW_USER] },
+  },
+  {
+    path: '/api/monitoring/calls/[id]/recording/start',
+    isPublic: false,
+    accessTo: { POST: [DIVISION_MONITOR] },
+  },
+  {
+    path: '/api/monitoring/calls/[id]/recording/[recordingId]/media',
+    isPublic: false,
+    accessTo: { POST: [DIVISION_MONITOR] },
+  },
+  {
+    path: '/api/monitoring/calls/[id]/recording/[recordingId]/stop',
+    isPublic: false,
+    accessTo: { POST: [DIVISION_MONITOR] },
+  },
+  {
+    path: '/api/monitoring/calls/[id]/recordings',
+    isPublic: false,
+    accessTo: { GET: [...DIVISION_READ] },
+  },
+  {
+    path: '/api/monitoring/calls/[id]',
+    isPublic: false,
+    accessTo: { GET: [...DIVISION_READ, LOBBY_USER, CREW_USER] },
+  },
+  {
+    path: '/api/monitoring/recordings/[id]/file',
+    isPublic: false,
+    accessTo: { GET: [...DIVISION_READ] },
+  },
+  {
+    path: '/api/monitoring/recordings/[id]',
+    isPublic: false,
+    accessTo: { GET: [...DIVISION_READ] },
+  },
+  {
+    path: '/api/monitoring/recordings',
+    isPublic: false,
+    accessTo: { GET: [...DIVISION_READ] },
+  },
 ] as const;

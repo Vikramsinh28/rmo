@@ -62,7 +62,7 @@ export function homePathForRole(role: string | null | undefined): string {
     case 'DIVISION_MONITOR':
       return '/monitoring';
     case 'LOBBY_USER':
-      return '/lobbies';
+      return '/monitoring/desk';
     case 'CREW_USER':
       return '/crew';
     default:
