@@ -1,84 +1,56 @@
-# =============================================================================
-# Stage 1: Base Image
-# =============================================================================
-# Use Node.js 20 Alpine for smaller image size
+# Production image. Build context is the repository root:
+# docker build -f infra/Dockerfile .
+
 FROM node:24-alpine AS base
 
-# Install system dependencies needed for some npm packages
-RUN apk add --no-cache libc6-compat
+RUN apk add --no-cache libc6-compat openssl
+RUN corepack enable && corepack prepare pnpm@10 --activate
 
-# Set working directory
 WORKDIR /app
 
-# pnpm installation
-RUN corepack enable && corepack prepare pnpm@latest --activate
-
-# =============================================================================
-# Stage 2: Dependencies Installation
-# =============================================================================
 FROM base AS deps
 
-# Copy package & lock files first for better Docker layer caching
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+RUN pnpm install --frozen-lockfile
 
-# Install all dependencies (including devDependencies for build stage)
-RUN pnpm install
-
-# =============================================================================
-# Stage 3: Build Stage
-# =============================================================================
 FROM base AS builder
 
-# Copy dependencies from deps stage
 COPY --from=deps /app/node_modules ./node_modules
-
-# Copy all source files
 COPY . .
 
-# Generate Prisma client before building
-RUN pnpm run generate
+# prisma.config.ts reads POSTGRES_URL when the client is generated.
+# Generate does not connect. The real URL is injected when the container starts.
+ENV POSTGRES_URL=postgresql://build:build@127.0.0.1:5432/rmo?schema=public
+ENV NEXT_TELEMETRY_DISABLED=1
 
-# Build arguments for Next.js public environment variables
-ARG NEXT_PUBLIC_APP_URL
-ARG NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
-ARG NEXT_PUBLIC_SENTRY_DSN
-ARG NEXT_PUBLIC_GOOGLE_CLIENT_ID
+ARG NEXT_PUBLIC_APP_URL=http://localhost:3000
+ARG NEXT_PUBLIC_S3_PUBLIC_BASE_URL
+ARG NEXT_PUBLIC_FILE_STORAGE_DRIVER=s3
 
-# Set environment variables for build
 ENV NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL}
-ENV NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=${NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY}
-ENV NEXT_PUBLIC_SENTRY_DSN=${NEXT_PUBLIC_SENTRY_DSN}
-ENV NEXT_PUBLIC_GOOGLE_CLIENT_ID=${NEXT_PUBLIC_GOOGLE_CLIENT_ID}
+ENV NEXT_PUBLIC_S3_PUBLIC_BASE_URL=${NEXT_PUBLIC_S3_PUBLIC_BASE_URL}
+ENV NEXT_PUBLIC_FILE_STORAGE_DRIVER=${NEXT_PUBLIC_FILE_STORAGE_DRIVER}
 
-# Build the Next.js application
-RUN pnpm run build
+RUN pnpm generate && pnpm build && pnpm prune --prod
 
-# =============================================================================
-# Stage 4: Production Runtime
-# =============================================================================
 FROM base AS runner
 
-# Set production environment
 ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV HOSTNAME=0.0.0.0
+ENV PORT=3000
 
-# Copy package files and install only production dependencies
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-RUN pnpm prune --prod
-
-# Copy built application from builder stage
-COPY --from=builder /app/.next/standalone ./
-COPY --from=builder /app/.next/static ./.next/static
+COPY --from=builder /app/package.json /app/pnpm-lock.yaml /app/pnpm-workspace.yaml ./
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/public ./public
-
-# Copy Prisma files for database operations
 COPY --from=builder /app/prisma ./prisma
-COPY --from=builder /app/node_modules/@prisma/client ./node_modules/@prisma/client
+COPY --from=builder /app/prisma.config.ts ./prisma.config.ts
+COPY --from=builder /app/src/lib/prisma ./src/lib/prisma
+COPY infra/docker-entrypoint.sh /app/docker-entrypoint.sh
 
-# Expose port
+RUN chmod +x /app/docker-entrypoint.sh
+
 EXPOSE 3000
 
-# Set hostname for Next.js
-ENV HOSTNAME="0.0.0.0"
-
-# Start the application
-CMD ["pnpm", "run", "start"]
+CMD ["/app/docker-entrypoint.sh"]

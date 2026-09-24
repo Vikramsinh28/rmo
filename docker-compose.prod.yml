@@ -1,0 +1,17 @@
+# Production app on the existing EC2 host.
+# Postgres is the db-dev container already listening on 127.0.0.1:5432.
+# Secrets stay in the .env file on the server and are not baked into the image.
+
+services:
+  app:
+    image: ${RMO_IMAGE:-ghcr.io/vikramsinh28/rmo:latest}
+    container_name: rmo-app
+    restart: unless-stopped
+    network_mode: host
+    env_file:
+      - .env
+    logging:
+      driver: json-file
+      options:
+        max-size: '10m'
+        max-file: '3'
