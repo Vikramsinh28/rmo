@@ -23,5 +23,6 @@ if command -v pm2 >/dev/null 2>&1 && pm2 describe rmo >/dev/null 2>&1; then
   pm2 save
 fi
 
+docker rm -f rmo-app >/dev/null 2>&1 || true
 docker compose -f docker-compose.prod.yml up -d --force-recreate
 docker image prune -f
