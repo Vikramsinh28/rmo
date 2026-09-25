@@ -131,7 +131,7 @@ The live lobby call matches the existing monitor and lobby apps. The server only
 
 The division monitor is the caller. After the lobby accepts, each side publishes its camera and microphone and receives the other side's camera and microphone. The remote camera fills the picture, and the local camera is the small preview. Audio plays with the video.
 
-Signaling is `GET` and `POST /api/monitoring/calls/:id/signal` with `offer`, `answer`, and `ice`. Only a joined participant on a connected call can use it. A dropped peer asks the monitor to send a new offer. That does not end the call. ICE uses the same STUN and DigitalOcean TURN server as the railway monitoring apps (`turn.railwaymonitor.in:3478`, UDP and TCP). `GET /api/monitoring/ice` gives that list to a signed-in monitor, lobby user, or crew member. A temporary disconnect stays on the same call.
+Signaling is `GET` and `POST /api/monitoring/calls/:id/signal` with `offer`, `answer`, and `ice`. Only a joined participant on a connected call can use it. A dropped peer asks the monitor to send a new offer. That does not end the call. ICE uses the same STUN and DigitalOcean TURN server as the railway monitoring apps (`turn.railwaymonitor.in:3478`, UDP and TCP). `GET /api/monitoring/ice` gives that list to a signed-in monitor, lobby user, or crew member. If a direct path fails across networks, the monitor retries with TURN relay only. A temporary disconnect stays on the same call.
 
 Fixed CCTV cameras stay on the camera workspace. An HLS or file address plays in a video element. A kiosk web page stays in a frame. Those feeds are not part of the lobby call.
 

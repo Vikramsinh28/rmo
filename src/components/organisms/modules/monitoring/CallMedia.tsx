@@ -27,7 +27,10 @@ interface Signal {
   candidate: { candidate: string; sdpMid: string | null; sdpMLineIndex: number | null } | null;
 }
 
-const STUN_ONLY: RTCIceServer[] = [{ urls: 'stun:stun.l.google.com:19302' }];
+const STUN_ONLY: RTCIceServer[] = [
+  { urls: 'stun:stun.l.google.com:19302' },
+  { urls: 'stun:stun1.l.google.com:19302' },
+];
 
 async function loadIceServers() {
   try {
@@ -222,6 +225,8 @@ export function CallMedia({
     const remoteVideos: MediaStream[] = [];
     const owned: MediaStream[] = [];
     let iceServers = STUN_ONLY;
+    let icePolicy: RTCIceTransportPolicy = 'all';
+    let relayTried = false;
 
     const report = (state: 'RECONNECTING' | 'CONNECTED') => {
       void apiRequest(`/api/monitoring/calls/${callId}/connection`, {
@@ -248,7 +253,11 @@ export function CallMedia({
       closePeer();
       remoteVideos.splice(0, remoteVideos.length);
       showVideos();
-      pc = new RTCPeerConnection({ iceServers, iceTransportPolicy: 'all' });
+      pc = new RTCPeerConnection({
+        iceServers,
+        iceTransportPolicy: icePolicy,
+        iceCandidatePoolSize: 4,
+      });
       pc.onicecandidate = event => {
         if (!event.candidate) return;
         void post({
@@ -260,6 +269,34 @@ export function CallMedia({
           },
         }).catch(() => undefined);
       };
+      pc.oniceconnectionstatechange = () => {
+        if (closed || !pc) return;
+        if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
+          setStatus(icePolicy === 'relay' ? 'Live through relay' : 'Live');
+          report('CONNECTED');
+        }
+        if (pc.iceConnectionState === 'checking') {
+          setStatus(icePolicy === 'relay' ? 'Connecting through TURN...' : 'Connecting across networks...');
+        }
+        if (pc.iceConnectionState === 'failed') {
+          setStatus('Connection lost. Reconnecting...');
+          report('RECONNECTING');
+          if (role === 'monitor') {
+            if (!relayTried && iceServers.length > 1) {
+              relayTried = true;
+              icePolicy = 'relay';
+              window.setTimeout(() => {
+                if (!closed) void startMonitor();
+              }, 400);
+              return;
+            }
+            icePolicy = 'all';
+            window.setTimeout(() => {
+              if (!closed) void startMonitor();
+            }, 2000);
+          }
+        }
+      };
       pc.ontrack = event => {
         if (event.track.kind === 'audio') {
           attach(audioRef.current, new MediaStream([event.track]));
@@ -270,10 +307,10 @@ export function CallMedia({
             remoteVideos.push(new MediaStream([event.track]));
           }
           const playing = remoteVideos.find(stream => (
-            stream.getVideoTracks().some(track => !track.muted)
+            stream.getVideoTracks().some(track => track.readyState === 'live' && !track.muted)
           ));
           attach(mainRef.current, playing || remoteVideos[remoteVideos.length - 1] || null);
-          if (!closed) setStatus('Live');
+          if (!closed) setStatus(icePolicy === 'relay' ? 'Live through relay' : 'Live');
           report('CONNECTED');
         };
         event.track.onunmute = show;
@@ -282,7 +319,7 @@ export function CallMedia({
       pc.onconnectionstatechange = () => {
         if (closed || !pc) return;
         if (pc.connectionState === 'connected') {
-          setStatus('Live');
+          setStatus(icePolicy === 'relay' ? 'Live through relay' : 'Live');
           report('CONNECTED');
         }
         if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
@@ -292,6 +329,10 @@ export function CallMedia({
           window.setTimeout(() => {
             if (closed || role !== 'monitor' || failing !== pc) return;
             if (failing.connectionState === 'failed' || failing.connectionState === 'disconnected') {
+              if (!relayTried && iceServers.length > 1) {
+                relayTried = true;
+                icePolicy = 'relay';
+              }
               void startMonitor();
             }
           }, 2000);
@@ -440,7 +481,7 @@ export function CallMedia({
       if (role === 'lobby') setStatus('Waiting for the monitor...');
       timer = window.setInterval(() => {
         void poll().catch(() => undefined);
-      }, 500);
+      }, 250);
     });
 
     return () => {
