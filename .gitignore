@@ -37,6 +37,9 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# AI service local venv
+ai-service/.venv/
+
 # Sentry Config File
 .env.sentry-build-plugin
 

@@ -30,5 +30,24 @@ services:
       - "7882:7882/udp"
     restart: unless-stopped
 
+  # Phase 6 — optional AI frame consumer. Does not own live WebRTC calls.
+  ai-service:
+    build:
+      context: ./ai-service
+    container_name: rmo-kostra-ai-service
+    environment:
+      AI_SERVICE_TOKEN: ${AI_SERVICE_TOKEN:-local-ai-service-token}
+      AI_FRAME_INTERVAL_MS: ${AI_FRAME_INTERVAL_MS:-1000}
+      AI_DEV_TEST_STREAM: ${AI_DEV_TEST_STREAM:-false}
+      AI_MAX_FRAME_BYTES: ${AI_MAX_FRAME_BYTES:-512000}
+    ports:
+      - "${AI_SERVICE_PORT:-8090}:8090"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8090/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
 volumes:
   postgres_data:

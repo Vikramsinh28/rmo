@@ -526,6 +526,65 @@ export function CallMedia({
     return () => document.removeEventListener('fullscreenchange', onChange);
   }, []);
 
+  // Phase 6: sample displayed video frames for the AI consumer. Does not alter WebRTC.
+  useEffect(() => {
+    if (role !== 'monitor') return undefined;
+    let cancelled = false;
+    let posting = false;
+    let sampled = 0;
+    console.info(`[rmo-ai] AI_CLIENT_SAMPLER_ARMED callId=${callId}`);
+    const canvas = document.createElement('canvas');
+    const timer = window.setInterval(() => {
+      if (cancelled || posting) return;
+      const video = mainRef.current;
+      if (!video || video.readyState < 2 || video.videoWidth < 2) return;
+      void (async () => {
+        try {
+          const status = await apiRequest<{
+            processing: { status: string; framesProcessed?: number } | null;
+          }>(`/api/monitoring/calls/${callId}/ai/status`);
+          if (cancelled || status.processing?.status !== 'RUNNING') return;
+          canvas.width = Math.min(video.videoWidth, 640);
+          canvas.height = Math.round(
+            (canvas.width / video.videoWidth) * video.videoHeight,
+          );
+          const context = canvas.getContext('2d');
+          if (!context) return;
+          context.drawImage(video, 0, 0, canvas.width, canvas.height);
+          const blob = await new Promise<Blob | null>(resolve => {
+            canvas.toBlob(resolve, 'image/jpeg', 0.7);
+          });
+          if (!blob || cancelled) return;
+          posting = true;
+          await apiRequest(`/api/monitoring/calls/${callId}/ai/frames`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'image/jpeg' },
+            body: blob,
+          });
+          sampled += 1;
+          if (sampled === 1 || sampled % 5 === 0) {
+            console.info(
+              `[rmo-ai] AI_CLIENT_FRAME_SENT callId=${callId} samples=${sampled} `
+              + `bytes=${blob.size} video=${video.videoWidth}x${video.videoHeight}`,
+            );
+          }
+        } catch (error) {
+          console.warn(
+            `[rmo-ai] AI_CLIENT_FRAME_SKIPPED callId=${callId} `
+            + `reason=${error instanceof Error ? error.message : 'unknown'} liveCallAffected=false`,
+          );
+        } finally {
+          posting = false;
+        }
+      })();
+    }, 1000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+      console.info(`[rmo-ai] AI_CLIENT_SAMPLER_STOPPED callId=${callId} samples=${sampled}`);
+    };
+  }, [callId, role]);
+
   return (
     <div ref={stageRef} className="relative flex min-h-0 flex-1 flex-col bg-zinc-950 text-white">
       <video ref={mainRef} className="absolute inset-0 h-full w-full bg-black object-contain" autoPlay playsInline muted />
@@ -548,7 +607,7 @@ export function CallMedia({
               {status.startsWith('Connection lost') ? 'Reconnecting' : 'Live'}
             </span>
           </div>
-          <AICapabilityBadge callId={callId} />
+          <AICapabilityBadge callId={callId} canControl={role === 'monitor'} />
         </div>
       </div>
       <div className="relative z-10 mt-auto flex flex-col items-center gap-3 px-4 pb-5">

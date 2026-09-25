@@ -105,6 +105,7 @@ model User {
   recordingsStarted  RecordingSegment[]  @relation("RecordingStarter")
   recordingsStopped  RecordingSegment[]  @relation("RecordingStopper")
   roomParticipants   RoomParticipant[]
+  aiJobsStarted      AIProcessingJob[]   @relation("AIJobStarter")
 
   @@index([rmoRole])
   @@index([accountStatus])
@@ -351,6 +352,7 @@ model Division {
   crewEnrollments CrewEnrollment[]
   lobbyCalls      LobbyCall[]
   aiEntitlement   DivisionAIEntitlement?
+  aiJobs          AIProcessingJob[]
 
   @@unique([zoneId, code])
   @@index([zoneId])
@@ -375,6 +377,7 @@ model Lobby {
   room            LobbyRoom?
   lobbyCalls      LobbyCall[]
   recordingSegments RecordingSegment[]
+  aiJobs          AIProcessingJob[]
 
   @@unique([divisionId, code])
   @@index([divisionId])
@@ -689,6 +692,7 @@ model LobbyCall {
   endedBy      User?              @relation("CallEnder", fields: [endedById], references: [id])
   participants RoomParticipant[]
   recordings   RecordingSegment[]
+  aiJobs       AIProcessingJob[]
 
   @@index([roomId])
   @@index([lobbyId, status])
@@ -779,4 +783,40 @@ model DivisionAIEntitlement {
 
   @@index([status])
   @@index([enabled])
+}
+
+enum AIProcessingStatus {
+  STARTING
+  RUNNING
+  STOPPING
+  STOPPED
+  ERROR
+}
+
+/// Optional AI frame-processing job attached to a live LobbyCall. Never owns the call.
+model AIProcessingJob {
+  id               Int                @id @default(autoincrement())
+  lobbyCallId      Int
+  divisionId       Int
+  lobbyId          Int
+  startedById      Int
+  status           AIProcessingStatus @default(STARTING)
+  framesReceived   Int                @default(0)
+  framesProcessed  Int                @default(0)
+  processingFps    Float?
+  lastFrameAt      DateTime?
+  errorMessage     String?
+  startedAt        DateTime           @default(now())
+  stoppedAt        DateTime?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  call      LobbyCall @relation(fields: [lobbyCallId], references: [id], onDelete: Cascade)
+  division  Division  @relation(fields: [divisionId], references: [id])
+  lobby     Lobby     @relation(fields: [lobbyId], references: [id])
+  startedBy User      @relation("AIJobStarter", fields: [startedById], references: [id])
+
+  @@index([lobbyCallId, status])
+  @@index([divisionId, status])
+  @@index([lobbyId])
 }

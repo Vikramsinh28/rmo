@@ -365,6 +365,26 @@ export const ALL_ROUTES: RouteConfig[] = [
     accessTo: { GET: [...DIVISION_READ, LOBBY_USER, CREW_USER] },
   },
   {
+    path: '/api/monitoring/calls/[id]/ai/start',
+    isPublic: false,
+    accessTo: { POST: [SYSTEM_ADMIN, DIVISION_MONITOR] },
+  },
+  {
+    path: '/api/monitoring/calls/[id]/ai/stop',
+    isPublic: false,
+    accessTo: { POST: [SYSTEM_ADMIN, DIVISION_MONITOR] },
+  },
+  {
+    path: '/api/monitoring/calls/[id]/ai/status',
+    isPublic: false,
+    accessTo: { GET: [...DIVISION_READ, LOBBY_USER] },
+  },
+  {
+    path: '/api/monitoring/calls/[id]/ai/frames',
+    isPublic: false,
+    accessTo: { POST: [SYSTEM_ADMIN, DIVISION_MONITOR, LOBBY_USER] },
+  },
+  {
     path: '/api/monitoring/calls/[id]/accept',
     isPublic: false,
     accessTo: { POST: [LOBBY_USER] },
