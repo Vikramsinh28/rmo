@@ -350,6 +350,7 @@ model Division {
   submissions     Submission[]
   crewEnrollments CrewEnrollment[]
   lobbyCalls      LobbyCall[]
+  aiEntitlement   DivisionAIEntitlement?
 
   @@unique([zoneId, code])
   @@index([zoneId])
@@ -745,4 +746,37 @@ model RecordingSegment {
   @@index([lobbyCallId, status])
   @@index([lobbyId])
   @@index([startedAt])
+}
+
+enum AIEntitlementStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum AIPlan {
+  BASIC
+  PREMIUM
+  ENTERPRISE
+}
+
+/// Division-level paid AI monitoring entitlement. Feature flags only; no AI processing.
+model DivisionAIEntitlement {
+  id                  Int                 @id @default(autoincrement())
+  divisionId          Int                 @unique
+  enabled             Boolean             @default(false)
+  plan                AIPlan              @default(BASIC)
+  status              AIEntitlementStatus @default(INACTIVE)
+  startsAt            DateTime?
+  expiresAt           DateTime?
+  faceIdentification  Boolean             @default(false)
+  fatigueDetection    Boolean             @default(false)
+  impairmentDetection Boolean             @default(false)
+  behaviorMonitoring  Boolean             @default(false)
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+
+  division Division @relation(fields: [divisionId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@index([enabled])
 }

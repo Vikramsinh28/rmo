@@ -27,6 +27,13 @@ interface Row {
   divisionId?: number;
   zone?: { id: number; name: string; code: string };
   division?: { id: number; name: string; code: string; zone?: { name: string } };
+  ai?: {
+    enabled: boolean;
+    available: boolean;
+    plan: string | null;
+    status: string;
+    expiresAt: string | null;
+  };
 }
 
 interface Page {
@@ -212,7 +219,15 @@ export function OrgScreen({ kind, canWrite }: { kind: Kind; canWrite: boolean })
                   <th className="px-4 py-3 font-medium">Code</th>
                   {kind !== 'zones' ? <th className="px-4 py-3 font-medium">Parent</th> : null}
                   <th className="px-4 py-3 font-medium">Status</th>
-                  {canWrite || kind === 'lobbies' ? (
+                  {kind === 'divisions' ? (
+                    <>
+                      <th className="px-4 py-3 font-medium">AI Monitoring</th>
+                      <th className="px-4 py-3 font-medium">Plan</th>
+                      <th className="px-4 py-3 font-medium">AI Status</th>
+                      <th className="px-4 py-3 font-medium">Expiry</th>
+                    </>
+                  ) : null}
+                  {canWrite || kind === 'lobbies' || kind === 'divisions' ? (
                     <th className="px-4 py-3 font-medium">Actions</th>
                   ) : null}
                 </tr>
@@ -230,12 +245,33 @@ export function OrgScreen({ kind, canWrite }: { kind: Kind; canWrite: boolean })
                     <td className="px-4 py-3">
                       <StatusBadge status={row.status} />
                     </td>
-                    {canWrite || kind === 'lobbies' ? (
+                    {kind === 'divisions' ? (
+                      <>
+                        <td className="px-4 py-3">
+                          <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${row.ai?.available ? 'bg-emerald-50 text-emerald-800' : 'bg-zinc-100 text-zinc-700'}`}>
+                            {row.ai?.available ? 'Enabled' : 'Disabled'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-xs">{row.ai?.plan || '—'}</td>
+                        <td className="px-4 py-3 text-xs">{row.ai?.status || 'NONE'}</td>
+                        <td className="px-4 py-3 text-xs">
+                          {row.ai?.expiresAt ? new Date(row.ai.expiresAt).toLocaleDateString() : '—'}
+                        </td>
+                      </>
+                    ) : null}
+                    {canWrite || kind === 'lobbies' || kind === 'divisions' ? (
                       <td className="px-4 py-3">
                         <div className="flex gap-2">
                           {kind === 'lobbies' ? (
                             <Button variant="outline" className="h-8" asChild>
                               <Link href={`/lobbies/${row.id}`}>View</Link>
+                            </Button>
+                          ) : null}
+                          {kind === 'divisions' ? (
+                            <Button variant="outline" className="h-8" asChild>
+                              <Link href={`/divisions/${row.id}/ai`}>
+                                {row.ai?.enabled ? 'Manage AI' : 'Enable AI'}
+                              </Link>
                             </Button>
                           ) : null}
                           {canWrite ? (

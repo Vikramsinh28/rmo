@@ -2,7 +2,7 @@
 
 import { streamPlayback, type StreamPlayback } from '@/lib/rmo/stream';
 import Hls from 'hls.js';
-import { Maximize2, Monitor, Video } from 'lucide-react';
+import { Loader2, Maximize2, Monitor, Video } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
 interface StreamTileProps {
@@ -19,9 +19,19 @@ function videoMode(deviceType: 'CAMERA' | 'KIOSK', kind: StreamPlayback): 'hls' 
   return null;
 }
 
+function StreamLoader({ label }: { label: string }) {
+  return (
+    <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 bg-black/80">
+      <Loader2 className="size-6 animate-spin text-orange-400" aria-hidden />
+      <p className="text-xs text-zinc-300">{label}</p>
+    </div>
+  );
+}
+
 function HlsVideo({ url, mode }: { url: string; mode: 'hls' | 'file' }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -30,17 +40,26 @@ function HlsVideo({ url, mode }: { url: string; mode: 'hls' | 'file' }) {
     let hls: Hls | null = null;
     let attempts = 0;
     setError('');
+    setLoading(true);
 
     const play = () => {
       video.play().catch(() => undefined);
     };
 
+    const ready = () => {
+      if (!cancelled) setLoading(false);
+    };
+
     const fail = (message: string) => {
-      if (!cancelled) setError(message);
+      if (!cancelled) {
+        setError(message);
+        setLoading(false);
+      }
     };
 
     const start = () => {
       if (cancelled) return;
+      setLoading(true);
       hls?.destroy();
       hls = null;
       video.removeAttribute('src');
@@ -50,6 +69,8 @@ function HlsVideo({ url, mode }: { url: string; mode: 'hls' | 'file' }) {
 
       if (mode === 'file' || (nativeHls && !Hls.isSupported())) {
         video.src = url;
+        video.addEventListener('loadeddata', ready, { once: true });
+        video.addEventListener('playing', ready, { once: true });
         video.addEventListener('loadedmetadata', play, { once: true });
         video.addEventListener(
           'error',
@@ -68,6 +89,8 @@ function HlsVideo({ url, mode }: { url: string; mode: 'hls' | 'file' }) {
       hls.loadSource(url);
       hls.attachMedia(video);
       hls.on(Hls.Events.MANIFEST_PARSED, play);
+      hls.on(Hls.Events.FRAG_LOADED, ready);
+      video.addEventListener('playing', ready, { once: true });
       hls.on(Hls.Events.ERROR, (_event, data) => {
         if (!data.fatal || cancelled) return;
         attempts += 1;
@@ -95,13 +118,39 @@ function HlsVideo({ url, mode }: { url: string; mode: 'hls' | 'file' }) {
   }
 
   return (
-    <video
-      ref={videoRef}
-      className="h-full w-full bg-black object-contain"
-      muted
-      playsInline
-      autoPlay
-    />
+    <>
+      {loading ? <StreamLoader label="Loading stream..." /> : null}
+      <video
+        ref={videoRef}
+        className="h-full w-full bg-black object-contain"
+        muted
+        playsInline
+        autoPlay
+      />
+    </>
+  );
+}
+
+function KioskPage({ name, url }: { name: string; url: string }) {
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setLoading(true);
+    const timer = window.setTimeout(() => setLoading(false), 12_000);
+    return () => window.clearTimeout(timer);
+  }, [url]);
+
+  return (
+    <>
+      {loading ? <StreamLoader label="Loading kiosk..." /> : null}
+      <iframe
+        title={name}
+        src={url}
+        className="absolute inset-0 h-full w-full border-0 bg-black"
+        allow="fullscreen; autoplay"
+        onLoad={() => setLoading(false)}
+      />
+    </>
   );
 }
 
@@ -121,12 +170,7 @@ export function StreamFrame({
     <div className="relative flex h-full min-h-0 w-full items-center justify-center bg-black">
       {mode ? <HlsVideo url={streamUrl} mode={mode} /> : null}
       {kind === 'page' && deviceType === 'KIOSK' ? (
-        <iframe
-          title={name}
-          src={streamUrl}
-          className="absolute inset-0 h-full w-full border-0 bg-black"
-          allow="fullscreen; autoplay"
-        />
+        <KioskPage name={name} url={streamUrl} />
       ) : null}
       {kind === 'unsupported' ? (
         <p className="px-4 text-center text-xs text-zinc-300">

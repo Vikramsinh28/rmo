@@ -16,6 +16,7 @@ import {
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { toast } from 'sonner';
 import { apiRequest } from '../administration/api';
+import { AICapabilityBadge } from './AICapabilityBadge';
 import { captureLiveDesk, recordDesk } from './desk-recorder';
 import { currentLobbyMedia, prepareLobbyMedia } from './lobby-media';
 
@@ -537,14 +538,17 @@ export function CallMedia({
           <h2 className="text-xl font-semibold">{peerName}</h2>
           <p className="text-sm text-zinc-300" role="status">{status}</p>
         </div>
-        <div className="flex items-center gap-2">
-          {recording ? (
-            <span className="rounded-full bg-red-600 px-2 py-1 text-xs font-semibold">REC</span>
-          ) : null}
-          <span className="rounded-full bg-black/50 px-3 py-1 text-sm tabular-nums">{elapsed}</span>
-          <span className="rounded-full bg-red-600 px-2 py-1 text-xs font-semibold">
-            {status.startsWith('Connection lost') ? 'Reconnecting' : 'Live'}
-          </span>
+        <div className="flex max-w-md flex-col items-end gap-2">
+          <div className="flex items-center gap-2">
+            {recording ? (
+              <span className="rounded-full bg-red-600 px-2 py-1 text-xs font-semibold">REC</span>
+            ) : null}
+            <span className="rounded-full bg-black/50 px-3 py-1 text-sm tabular-nums">{elapsed}</span>
+            <span className="rounded-full bg-red-600 px-2 py-1 text-xs font-semibold">
+              {status.startsWith('Connection lost') ? 'Reconnecting' : 'Live'}
+            </span>
+          </div>
+          <AICapabilityBadge callId={callId} />
         </div>
       </div>
       <div className="relative z-10 mt-auto flex flex-col items-center gap-3 px-4 pb-5">

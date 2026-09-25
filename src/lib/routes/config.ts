@@ -66,6 +66,11 @@ export const ALL_ROUTES: RouteConfig[] = [
   { path: '/overview', isPublic: false, accessTo: { GET: [...SIGNED_IN] } },
   { path: '/zones', isPublic: false, accessTo: { GET: [...ORG_ADMIN] } },
   { path: '/divisions', isPublic: false, accessTo: { GET: [...DIVISION_READ] } },
+  {
+    path: '/divisions/[id]/ai',
+    isPublic: false,
+    accessTo: { GET: [SYSTEM_ADMIN, DIVISION_ADMIN, DIVISION_MONITOR] },
+  },
   { path: '/lobbies', isPublic: false, accessTo: { GET: [...LOBBY_READ] } },
   { path: '/users', isPublic: false, accessTo: { GET: [...USER_ADMIN] } },
   { path: '/roles', isPublic: false, accessTo: { GET: [...ORG_ADMIN] } },
@@ -156,6 +161,14 @@ export const ALL_ROUTES: RouteConfig[] = [
     path: '/api/admin/divisions',
     isPublic: false,
     accessTo: { GET: [...DIVISION_READ], POST: [...ORG_ADMIN] },
+  },
+  {
+    path: '/api/admin/divisions/[id]/ai',
+    isPublic: false,
+    accessTo: {
+      GET: [SYSTEM_ADMIN, DIVISION_ADMIN, DIVISION_MONITOR],
+      PATCH: [SYSTEM_ADMIN],
+    },
   },
   {
     path: '/api/admin/divisions/[id]',
@@ -307,6 +320,11 @@ export const ALL_ROUTES: RouteConfig[] = [
   },
 
   {
+    path: '/api/monitoring/ai',
+    isPublic: false,
+    accessTo: { GET: [DIVISION_ADMIN, DIVISION_MONITOR, LOBBY_USER] },
+  },
+  {
     path: '/api/monitoring/events',
     isPublic: false,
     accessTo: { GET: [...DIVISION_READ, LOBBY_USER, CREW_USER] },
@@ -338,6 +356,11 @@ export const ALL_ROUTES: RouteConfig[] = [
   },
   {
     path: '/api/monitoring/lobbies/[id]',
+    isPublic: false,
+    accessTo: { GET: [...DIVISION_READ, LOBBY_USER, CREW_USER] },
+  },
+  {
+    path: '/api/monitoring/calls/[id]/ai',
     isPublic: false,
     accessTo: { GET: [...DIVISION_READ, LOBBY_USER, CREW_USER] },
   },

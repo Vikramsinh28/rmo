@@ -13,6 +13,7 @@ import { PanelLeftClose, PanelLeftOpen, Phone, PhoneOff } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { apiRequest } from '../administration/api';
+import { AICapabilityBadge } from './AICapabilityBadge';
 import { CallMedia } from './CallMedia';
 import { DeskWorkspace } from './DeskWorkspace';
 import { useCallRingtone } from './ringtone';
@@ -203,6 +204,9 @@ export function LobbyMonitorScreen() {
               <MiniStat label="Lobbies" value={board?.summary.lobbies ?? '—'} />
               <MiniStat label="Calls" value={board?.summary.activeCalls ?? '—'} />
               <MiniStat label="Rec" value={board?.summary.recordingNow ?? '—'} />
+            </div>
+            <div className="mt-3">
+              <AICapabilityBadge callId={call?.id} />
             </div>
           </div>
           <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-3">

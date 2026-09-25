@@ -14,6 +14,10 @@ import {
 } from '@/lib/rmo/access';
 import { RmoError } from '@/lib/rmo/errors';
 import { enrollmentCounts } from '@/services/internal/rmo/crew-enrollment';
+import {
+  presentAISummary,
+  resolveDivisionAICapabilities,
+} from '@/services/internal/rmo/ai-entitlement';
 import { hashPassword, validatePassword } from '@/lib/utils';
 import { AccountStatus, OrgStatus, Prisma, RmoRole } from '@/lib/prisma/generated/client';
 
@@ -226,11 +230,27 @@ export async function listDivisions(actor: Actor, query: ListQuery) {
       orderBy: { name: 'asc' },
       skip,
       take,
-      include: { zone: { select: { id: true, name: true, code: true } } },
+      include: {
+        zone: { select: { id: true, name: true, code: true } },
+        aiEntitlement: true,
+      },
     }),
     prisma.division.count({ where }),
   ]);
-  return { items, total, page, pageSize };
+  return {
+    items: items.map(item => {
+      const capabilities = resolveDivisionAICapabilities(item.id, item.name, item.aiEntitlement);
+      const { aiEntitlement: _aiEntitlement, ...division } = item;
+      void _aiEntitlement;
+      return {
+        ...division,
+        ai: presentAISummary(capabilities),
+      };
+    }),
+    total,
+    page,
+    pageSize,
+  };
 }
 
 export async function getDivision(actor: Actor, id: number) {

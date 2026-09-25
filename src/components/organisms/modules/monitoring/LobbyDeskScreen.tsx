@@ -6,6 +6,7 @@ import { Phone, PhoneOff } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { apiRequest } from '../administration/api';
+import { AICapabilityBadge } from './AICapabilityBadge';
 import { CallMedia } from './CallMedia';
 import { prepareLobbyMedia, stopLobbyMedia } from './lobby-media';
 import { useCallRingtone } from './ringtone';
@@ -167,6 +168,7 @@ export function LobbyDeskScreen() {
       <p className="text-sm text-zinc-300">
         {lobby?.presence === 'ONLINE' ? 'Lobby online' : lobby?.presence === 'CONNECTING' ? 'Lobby connecting' : 'Lobby offline'}
       </p>
+      {!crew ? <AICapabilityBadge callId={call?.id} /> : null}
       {live && call ? (
         <section className="rounded-xl border border-white/10 p-4">
           <h2 className="text-lg font-semibold">Live with {call.monitorName}</h2>
