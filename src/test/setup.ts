@@ -31,6 +31,8 @@ export async function cleanupDatabase() {
     await testPrisma.$transaction(async tx => {
       await tx.recordingSegment.deleteMany({});
       await tx.aIProcessingJob.deleteMany({});
+      await tx.userFaceEnrollment.deleteMany({});
+      await tx.divisionFaceCollection.deleteMany({});
       await tx.roomParticipant.deleteMany({});
       await tx.lobbyCall.deleteMany({});
       await tx.lobbyRoom.deleteMany({});

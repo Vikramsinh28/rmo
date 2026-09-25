@@ -42,6 +42,10 @@ interface AIPage {
     moduleNote: string;
     features: FeatureSet;
   };
+  faceEnrollment?: {
+    crewTotal: number;
+    enrolled: number;
+  };
 }
 
 const FEATURES: { key: keyof FeatureSet; title: string; description: string }[] = [
@@ -192,6 +196,11 @@ export function DivisionAIScreen({ divisionId }: { divisionId: number }) {
           </div>
           <StatusBadge status={page.capabilities.available ? 'ACTIVE' : 'DISABLED'} />
         </div>
+        {page.faceEnrollment ? (
+          <p className="mt-3 text-sm text-muted-foreground">
+            Enrolled crew: {page.faceEnrollment.enrolled} / {page.faceEnrollment.crewTotal}
+          </p>
+        ) : null}
         <form className="mt-5 grid gap-4 md:grid-cols-2" onSubmit={save}>
           <label className="flex items-center justify-between rounded-xl border px-4 py-3 md:col-span-2">
             <div>

@@ -17,6 +17,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { toast } from 'sonner';
 import { apiRequest } from '../administration/api';
 import { AICapabilityBadge } from './AICapabilityBadge';
+import { FaceRecognizeControls } from './FaceRecognizeControls';
 import { captureLiveDesk, recordDesk } from './desk-recorder';
 import { currentLobbyMedia, prepareLobbyMedia } from './lobby-media';
 
@@ -608,6 +609,11 @@ export function CallMedia({
             </span>
           </div>
           <AICapabilityBadge callId={callId} canControl={role === 'monitor'} />
+          <FaceRecognizeControls
+            callId={callId}
+            videoRef={mainRef}
+            enabled={role === 'monitor'}
+          />
         </div>
       </div>
       <div className="relative z-10 mt-auto flex flex-col items-center gap-3 px-4 pb-5">

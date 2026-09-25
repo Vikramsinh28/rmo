@@ -76,6 +76,16 @@ export const ALL_ROUTES: RouteConfig[] = [
   { path: '/roles', isPublic: false, accessTo: { GET: [...ORG_ADMIN] } },
   { path: '/audit', isPublic: false, accessTo: { GET: [...ORG_ADMIN] } },
   { path: '/crew', isPublic: false, accessTo: { GET: [CREW_USER, ...ORG_ADMIN] } },
+  {
+    path: '/crew/face-enrollment',
+    isPublic: false,
+    accessTo: { GET: [CREW_USER] },
+  },
+  {
+    path: '/api/crew/face-enrollment',
+    isPublic: false,
+    accessTo: { GET: [CREW_USER], POST: [CREW_USER] },
+  },
   { path: '/monitoring', isPublic: false, accessTo: { GET: [...DIVISION_READ] } },
   { path: '/forms', isPublic: false, accessTo: { GET: [...FORM_USE] } },
   { path: '/forms/new', isPublic: false, accessTo: { GET: [...FORM_ADMIN] } },
@@ -383,6 +393,11 @@ export const ALL_ROUTES: RouteConfig[] = [
     path: '/api/monitoring/calls/[id]/ai/frames',
     isPublic: false,
     accessTo: { POST: [SYSTEM_ADMIN, DIVISION_MONITOR, LOBBY_USER] },
+  },
+  {
+    path: '/api/monitoring/calls/[id]/ai/recognize',
+    isPublic: false,
+    accessTo: { POST: [SYSTEM_ADMIN, DIVISION_MONITOR] },
   },
   {
     path: '/api/monitoring/calls/[id]/accept',

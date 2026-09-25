@@ -106,6 +106,7 @@ model User {
   recordingsStopped  RecordingSegment[]  @relation("RecordingStopper")
   roomParticipants   RoomParticipant[]
   aiJobsStarted      AIProcessingJob[]   @relation("AIJobStarter")
+  faceEnrollments    UserFaceEnrollment[]
 
   @@index([rmoRole])
   @@index([accountStatus])
@@ -353,6 +354,8 @@ model Division {
   lobbyCalls      LobbyCall[]
   aiEntitlement   DivisionAIEntitlement?
   aiJobs          AIProcessingJob[]
+  faceEnrollments UserFaceEnrollment[]
+  faceCollection  DivisionFaceCollection?
 
   @@unique([zoneId, code])
   @@index([zoneId])
@@ -819,4 +822,50 @@ model AIProcessingJob {
   @@index([lobbyCallId, status])
   @@index([divisionId, status])
   @@index([lobbyId])
+}
+
+enum FaceEnrollmentStatus {
+  NOT_ENROLLED
+  PENDING
+  ENROLLED
+  FAILED
+  DISABLED
+}
+
+enum FaceEnrollmentProvider {
+  AWS_REKOGNITION
+}
+
+/// Per-division AWS Rekognition collection mapping. One collection per division.
+model DivisionFaceCollection {
+  id           Int      @id @default(autoincrement())
+  divisionId   Int      @unique
+  collectionId String   @unique
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  division Division @relation(fields: [divisionId], references: [id], onDelete: Cascade)
+}
+
+/// Crew face identity mapping for AWS Rekognition. Raw images are not stored.
+model UserFaceEnrollment {
+  id             Int                    @id @default(autoincrement())
+  userId         Int
+  divisionId     Int
+  status         FaceEnrollmentStatus   @default(NOT_ENROLLED)
+  provider       FaceEnrollmentProvider @default(AWS_REKOGNITION)
+  collectionId   String?
+  providerFaceId String?
+  failureReason  String?
+  enrolledAt     DateTime?
+  lastVerifiedAt DateTime?
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  division Division @relation(fields: [divisionId], references: [id])
+
+  @@index([userId, status])
+  @@index([divisionId, status])
+  @@index([providerFaceId])
 }
