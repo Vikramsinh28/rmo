@@ -158,6 +158,10 @@ def assess(features: Dict[str, Any]) -> Assessment:
     mean_quality = quality.get('mean')
     if mean_quality is not None and mean_quality < MIN_QUALITY:
         limitations.append('Low video quality')
+    if (features.get('lying') or {}).get('lyingDown'):
+        # A lying posture says nothing reliable about intoxication; it is reported as a notice.
+        limitations.append('Person lying down — visual indicators not assessed')
+        return Assessment(INSUFFICIENT, None, None, {}, [], limitations, mode)
 
     groups: Dict[str, Optional[float]] = {}
     texts: Dict[str, str] = {}
@@ -261,6 +265,9 @@ class RiskEngine:
 
     def reset(self) -> None:
         self._tracks.clear()
+
+    def forget(self, track_id: str) -> None:
+        self._tracks.pop(track_id, None)
 
     def drop_missing(self, track_ids: List[str]) -> None:
         keep = set(track_ids)

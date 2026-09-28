@@ -167,6 +167,7 @@ describe('Safety events', () => {
         plan: 'PREMIUM',
         status: 'ACTIVE',
         impairmentDetection: true,
+        fatigueDetection: true,
       },
     });
 
@@ -387,7 +388,10 @@ describe('Safety events', () => {
       box: { x: 0.2, y: 0.1, width: 0.3, height: 0.8 },
       name: null,
       identityStatus: 'UNKNOWN',
+      role: null,
       visualStatus: 'ELEVATED_INDICATORS',
+      drowsinessStatus: null,
+      notices: [],
     }]);
 
     const lobby = await frameAI(frameRequest(lobbyUser, callId), context(callId));
@@ -457,5 +461,112 @@ describe('Safety events', () => {
     expect(person.trackId).toBe('Person-1');
     expect(person.impairment).toBeUndefined();
     expect(person.visualStatus).toBeUndefined();
+  });
+
+  const DROWSY_EPISODE = {
+    id: 'Person-1-d1',
+    kind: 'DROWSINESS',
+    active: true,
+    startedAt: '2026-09-28T10:00:00.000Z',
+    endedAt: null,
+    peakStatus: 'ELEVATED_INDICATORS',
+    peakScore: 0.85,
+    peakConfidence: 0.8,
+    evidence: ['Eyes closed 85% of the last 20 s (longest closure 9.5 s)'],
+    groups: { eyes: 0.85 },
+    features: { closedFraction: 0.85, windowSeconds: 20 },
+  };
+
+  function drowsySubject() {
+    return {
+      ...personWith(null, 'MONITORING'),
+      role: 'subject',
+      notices: [],
+      drowsiness: {
+        status: 'POSSIBLE_DROWSINESS',
+        closedFraction: 0.85,
+        episode: DROWSY_EPISODE,
+        modelVersion: 'drowsiness-rules-v1',
+      },
+      tracking: { boundingBox: { x: 0.3, y: 0.1, width: 0.4, height: 0.8 } },
+    };
+  }
+
+  const BYSTANDER = {
+    trackId: 'Person-4',
+    role: 'other',
+    notices: ['LYING_DOWN'],
+    visualStatus: 'NOT_ASSESSED',
+    impairment: { status: 'NOT_ASSESSED', episode: null, modelVersion: 'visual-indicators-rules-v1' },
+    drowsiness: null,
+    tracking: { boundingBox: { x: 0, y: 0.6, width: 0.2, height: 0.3 } },
+  };
+
+  it('persists drowsiness as its own event kind and labels the bystander', async () => {
+    framePersons = [drowsySubject(), BYSTANDER];
+    const response = await frameAI(frameRequest(monitor, callId), context(callId));
+    const overlay = (await response.json()).data.overlay;
+    await flushSafetyEpisodesForTests();
+
+    expect(overlay).toEqual([
+      expect.objectContaining({
+        trackId: 'Person-1',
+        role: 'subject',
+        visualStatus: 'MONITORING',
+        drowsinessStatus: 'POSSIBLE_DROWSINESS',
+      }),
+      expect.objectContaining({
+        trackId: 'Person-4',
+        role: 'other',
+        visualStatus: 'NOT_ASSESSED',
+        drowsinessStatus: null,
+        notices: ['LYING_DOWN'],
+      }),
+    ]);
+
+    const events = await prisma.safetyEvent.findMany();
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      kind: 'DROWSINESS',
+      episodeKey: 'Person-1-d1',
+      trackId: 'Person-1',
+      modelVersion: 'drowsiness-rules-v1',
+    });
+
+    const listed = await listEvents(
+      requestFor(monitor, '/api/safety-events?kind=DROWSINESS', 'GET'),
+    );
+    const listedBody = (await listed.json()).data;
+    expect(listedBody.total).toBe(1);
+    expect(listedBody.items[0].kind).toBe('DROWSINESS');
+    const visual = await listEvents(
+      requestFor(monitor, '/api/safety-events?kind=VISUAL_INDICATORS', 'GET'),
+    );
+    expect((await visual.json()).data.total).toBe(0);
+  });
+
+  it('gates drowsiness on the fatigue-detection entitlement', async () => {
+    await prisma.divisionAIEntitlement.update({
+      where: { divisionId },
+      data: { fatigueDetection: false },
+    });
+    framePersons = [drowsySubject()];
+    const response = await frameAI(frameRequest(monitor, callId), context(callId));
+    const overlay = (await response.json()).data.overlay;
+    await flushSafetyEpisodesForTests();
+    expect(overlay[0].drowsinessStatus).toBeNull();
+    expect(overlay[0].visualStatus).toBe('MONITORING');
+    expect(await prisma.safetyEvent.count()).toBe(0);
+  });
+
+  it('ends an episode that is no longer reported for the track', async () => {
+    await sendFrame([personWith(EPISODE, 'ELEVATED_INDICATORS')]);
+    const now = Date.now();
+    const clock = jest.spyOn(Date, 'now').mockReturnValue(now + 11_000);
+    // Same person still in view, but no longer the assessed subject.
+    await sendFrame([{ ...BYSTANDER, trackId: 'Person-1', notices: [] }]);
+    clock.mockRestore();
+    const event = await prisma.safetyEvent.findFirstOrThrow();
+    expect(event.endedAt).not.toBeNull();
   });
 });

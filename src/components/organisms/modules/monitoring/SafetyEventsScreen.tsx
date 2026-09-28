@@ -9,6 +9,7 @@ import { useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 
 type Severity = 'ELEVATED_INDICATORS' | 'HIGH_INDICATORS';
+type Kind = 'VISUAL_INDICATORS' | 'DROWSINESS';
 type EventStatus = 'PENDING_REVIEW' | 'CONFIRMED' | 'DISMISSED' | 'INCONCLUSIVE';
 type Outcome = 'IMPAIRMENT_CONFIRMED' | 'NOT_IMPAIRED' | 'OTHER_CAUSE' | 'INSUFFICIENT_VIDEO';
 
@@ -19,6 +20,7 @@ export interface SafetyEventRow {
   division: { id: number; code: string; name: string };
   lobby: { id: number; code: string; name: string };
   subject: { userId: number | null; name: string | null; confidence: number | null } | null;
+  kind?: Kind;
   severity: Severity;
   peakScore: number;
   confidence: number;
@@ -73,7 +75,19 @@ const GROUP_LABEL: Record<string, string> = {
 
 const SELECT_CLASS = 'h-9 rounded-md border bg-background px-3 text-sm';
 
-export function severityBadge(severity: Severity) {
+const DROWSINESS_OUTCOME_LABEL: Partial<Record<Outcome, string>> = {
+  IMPAIRMENT_CONFIRMED: 'Drowsiness confirmed',
+  NOT_IMPAIRED: 'Not drowsy',
+};
+
+function outcomeLabel(outcome: Outcome, kind?: Kind) {
+  return (kind === 'DROWSINESS' && DROWSINESS_OUTCOME_LABEL[outcome]) || OUTCOME_LABEL[outcome];
+}
+
+export function severityBadge(severity: Severity, kind?: Kind) {
+  if (kind === 'DROWSINESS') {
+    return { label: 'Possible drowsiness', className: 'bg-fuchsia-50 text-fuchsia-800' };
+  }
   return severity === 'HIGH_INDICATORS'
     ? { label: 'High indicators', className: 'bg-red-50 text-red-800' }
     : { label: 'Elevated indicators', className: 'bg-amber-50 text-amber-800' };
@@ -154,7 +168,7 @@ function ReviewForm({
         >
           <option value="">Choose outcome…</option>
           {(Object.keys(OUTCOME_LABEL) as Outcome[]).map(key => (
-            <option key={key} value={key}>{OUTCOME_LABEL[key]}</option>
+            <option key={key} value={key}>{outcomeLabel(key, event.kind)}</option>
           ))}
         </select>
       </label>
@@ -196,7 +210,7 @@ export function EventDetail({
   onSaved: (event: SafetyEventRow) => void;
   onClose: () => void;
 }) {
-  const badge = severityBadge(event.severity);
+  const badge = severityBadge(event.severity, event.kind);
   const evidence = evidenceList(event.evidence);
   const groups = groupEntries(event.signalGroups);
   return (
@@ -269,7 +283,7 @@ export function EventDetail({
       {event.review ? (
         <div className="rounded-lg bg-muted/40 p-3 text-sm">
           <p className="font-medium">
-            {event.review.outcome ? OUTCOME_LABEL[event.review.outcome] : 'Reviewed'}
+            {event.review.outcome ? outcomeLabel(event.review.outcome, event.kind) : 'Reviewed'}
           </p>
           <p className="text-xs text-muted-foreground">
             {event.review.reviewedBy?.name || 'Unknown'} ·{' '}
@@ -432,7 +446,7 @@ export function SafetyEventsScreen() {
               </thead>
               <tbody>
                 {page.items.map(row => {
-                  const badge = severityBadge(row.severity);
+                  const badge = severityBadge(row.severity, row.kind);
                   return (
                     <tr
                       key={row.id}

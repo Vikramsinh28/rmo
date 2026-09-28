@@ -7,7 +7,10 @@ export interface LiveOverlayPerson {
   box: { x: number; y: number; width: number; height: number } | null;
   name: string | null;
   identityStatus: string | null;
+  role?: 'subject' | 'other' | null;
   visualStatus: string | null;
+  drowsinessStatus?: string | null;
+  notices?: string[];
 }
 
 interface Rect {
@@ -31,8 +34,28 @@ const STATUS_STYLE: Record<string, { border: string; label: string; text: string
     label: 'bg-zinc-600',
     text: 'Insufficient evidence',
   },
+  NOT_ASSESSED: { border: 'border-dashed border-zinc-400', label: 'bg-zinc-700', text: 'Other person' },
 };
 const DEFAULT_STYLE = { border: 'border-sky-400', label: 'bg-sky-600', text: '' };
+const DROWSY_STYLE = {
+  border: 'border-fuchsia-400',
+  label: 'bg-fuchsia-600',
+  text: 'Possible drowsiness',
+};
+const LYING_TEXT = 'Lying down';
+
+function personStyle(person: LiveOverlayPerson) {
+  const visual = person.visualStatus;
+  const alert = visual === 'HIGH_INDICATORS' || visual === 'ELEVATED_INDICATORS';
+  const drowsy = person.drowsinessStatus === 'POSSIBLE_DROWSINESS';
+  const base = drowsy && !alert
+    ? DROWSY_STYLE
+    : (visual && STATUS_STYLE[visual]) || DEFAULT_STYLE;
+  const parts = [base.text];
+  if (drowsy && base !== DROWSY_STYLE) parts.push(DROWSY_STYLE.text);
+  if (person.notices?.includes('LYING_DOWN')) parts.push(LYING_TEXT);
+  return { ...base, text: parts.filter(Boolean).join(' · ') };
+}
 
 /** Area actually covered by an object-contain video inside its element. */
 function containedRect(video: HTMLVideoElement): Rect | null {
@@ -88,7 +111,7 @@ export function LiveDetectionOverlay({
     >
       {persons.map(person => {
         if (!person.box) return null;
-        const style = (person.visualStatus && STATUS_STYLE[person.visualStatus]) || DEFAULT_STYLE;
+        const style = personStyle(person);
         const who = person.identityStatus === 'RECOGNIZED' && person.name
           ? person.name
           : `Unknown · ${person.trackId}`;

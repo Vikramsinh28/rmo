@@ -11,11 +11,27 @@ from app.features.movement_features import MovementFeatureExtractor
 from app.features.pose_features import PoseFeatureExtractor
 from app.features.quality import QualityEngine
 from app.identity.resolver import IdentityResolver, UnknownIdentityResolver
+from app.processing.subject import SubjectSelector
+from app.temporal.drowsiness import DrowsinessMonitor
 from app.temporal.features import TemporalFeatureExtractor
 from app.temporal.risk import INSUFFICIENT, MODEL_VERSION, RiskEngine
 from app.tracking.detector import PersonDetector, get_person_detector
 from app.tracking.state import RollingPersonStateStore
 from app.tracking.tracker import PersonTracker, get_person_tracker
+
+
+NOT_ASSESSED = 'NOT_ASSESSED'
+LYING_DOWN = 'LYING_DOWN'
+_FACE_SKIPPED: Dict[str, Any] = {
+    'visible': False,
+    'quality': None,
+    'boundingBox': None,
+    'headPose': {'pitch': None, 'yaw': None, 'roll': None},
+    'eyes': {'available': False, 'openProbability': None},
+    'mouth': {'available': False, 'openProbability': None},
+    'landmarkAvailability': False,
+    'signalsAvailable': [],
+}
 
 
 def _utc_now() -> datetime:
@@ -47,28 +63,69 @@ class FrameProcessingPipeline:
         self.quality = QualityEngine()
         self.temporal = TemporalFeatureExtractor(window_seconds=settings.ai_risk_window_seconds)
         self.risk = RiskEngine()
-        self._risk_cache: Dict[str, Dict[str, Any]] = {}
-        self._risk_evaluated_at: Dict[str, datetime] = {}
+        self.drowsiness = DrowsinessMonitor()
+        self.subject = SubjectSelector()
+        self._analysis_cache: Dict[str, Dict[str, Any]] = {}
+        self._evaluated_at: Dict[str, datetime] = {}
 
     def reset(self) -> None:
         self.tracker.reset()
         self.state.reset()
         self.risk.reset()
-        self._risk_cache.clear()
-        self._risk_evaluated_at.clear()
+        self.drowsiness.reset()
+        self.subject.reset()
+        self._analysis_cache.clear()
+        self._evaluated_at.clear()
 
-    def _assess_risk(self, track_id: str, history: list, now: datetime) -> Dict[str, Any]:
-        if not settings.ai_risk_enabled:
-            return {'status': INSUFFICIENT, 'confidence': None, 'modelVersion': MODEL_VERSION}
-        last = self._risk_evaluated_at.get(track_id)
+    def _analyse(self, track_id: str, history: list, now: datetime, is_subject: bool) -> Dict[str, Any]:
+        """Risk + drowsiness for the interview subject; only the lying check for anyone else."""
+        cached = self._analysis_cache.get(track_id)
+        last = self._evaluated_at.get(track_id)
         interval = settings.ai_risk_eval_interval_ms / 1000.0
-        if last is None or (now - last).total_seconds() >= interval:
+        fresh = (
+            cached is not None
+            and cached['subject'] == is_subject
+            and last is not None
+            and (now - last).total_seconds() < interval
+        )
+        if fresh:
+            return cached
+
+        if is_subject:
             features = self.temporal.compute(history)
-            result = self.risk.update(track_id, features, now)
-            result['features'] = features
-            self._risk_cache[track_id] = result
-            self._risk_evaluated_at[track_id] = now
-        return self._risk_cache[track_id]
+            lying = features.get('lying')
+            if settings.ai_risk_enabled:
+                risk = self.risk.update(track_id, features, now)
+                risk['features'] = features
+            else:
+                risk = {'status': INSUFFICIENT, 'confidence': None, 'modelVersion': MODEL_VERSION}
+            drowsiness = (
+                self.drowsiness.update(track_id, history, now)
+                if settings.ai_drowsiness_enabled else None
+            )
+        else:
+            # Leaving the subject role ends any open episode for this track.
+            self.risk.forget(track_id)
+            self.drowsiness.forget(track_id)
+            lying = self.temporal.lying(history)
+            risk = {
+                'status': NOT_ASSESSED,
+                'confidence': None,
+                'episode': None,
+                'limitations': ['Not the interview subject — visual indicators not assessed'],
+                'modelVersion': MODEL_VERSION,
+            }
+            drowsiness = None
+
+        result = {
+            'subject': is_subject,
+            'risk': risk,
+            'drowsiness': drowsiness,
+            'notices': [LYING_DOWN] if (lying or {}).get('lyingDown') else [],
+        }
+        self._analysis_cache[track_id] = result
+        self._evaluated_at[track_id] = now
+        return result
 
     def close(self) -> None:
         self.reset()
@@ -91,18 +148,25 @@ class FrameProcessingPipeline:
         retained = list({*active_ids, *self.tracker.known_track_ids()})
         self.state.drop_missing(retained)
         self.risk.drop_missing(retained)
-        for track_id in list(self._risk_cache):
+        self.drowsiness.drop_missing(retained)
+        for track_id in list(self._analysis_cache):
             if track_id not in retained:
-                self._risk_cache.pop(track_id, None)
-                self._risk_evaluated_at.pop(track_id, None)
+                self._analysis_cache.pop(track_id, None)
+                self._evaluated_at.pop(track_id, None)
 
         persons: List[dict] = []
         frame_stats = self.quality.frame_stats(frame_bgr) if tracked else None
         aspect = frame_bgr.shape[1] / frame_bgr.shape[0] if frame_bgr.shape[0] else 1.0
+        subject_id = self.subject.select(tracked, retained, now, aspect)
         for person in tracked:
+            is_subject = person.track_id == subject_id
             existing = self.state.get(person.track_id)
             history = existing.history if existing else []
-            face = self.face.extract(frame_bgr, person.bounding_box, person.keypoints)
+            # Face mesh is the costliest step; only the interview subject needs it.
+            face = (
+                self.face.extract(frame_bgr, person.bounding_box, person.keypoints)
+                if is_subject else dict(_FACE_SKIPPED)
+            )
             pose = self.pose.extract(person.bounding_box, person.keypoints, aspect=aspect)
             movement = self.movement.extract(
                 history,
@@ -130,7 +194,8 @@ class FrameProcessingPipeline:
                 identity=identity,
                 timestamp=now,
             )
-            risk = self._assess_risk(person.track_id, rollup.history, now)
+            analysis = self._analyse(person.track_id, rollup.history, now, is_subject)
+            risk = analysis['risk']
             # Quality suppresses displayed identity confidence (still null in Phase 10).
             identity_confidence = rollup.identity_confidence
             if identity_confidence is not None and quality.get('score', 1) < 0.4:
@@ -138,6 +203,8 @@ class FrameProcessingPipeline:
 
             persons.append({
                 'trackId': person.track_id,
+                'role': 'subject' if is_subject else 'other',
+                'notices': analysis['notices'],
                 'identity': {
                     'status': rollup.identity.get('status', 'UNKNOWN'),
                     'displayName': rollup.identity.get('displayName'),
@@ -181,6 +248,7 @@ class FrameProcessingPipeline:
                 # Visual-indicator status stays separate from identity confidence.
                 'impairment': risk,
                 'visualStatus': risk['status'],
+                'drowsiness': analysis['drowsiness'],
                 'historyLength': len(rollup.history),
             })
 
@@ -191,6 +259,7 @@ class FrameProcessingPipeline:
             'tracker': getattr(self.tracker, 'provider_name', 'unknown'),
             'faceProvider': getattr(self.face, 'provider_name', 'unknown'),
             'personCount': len(persons),
+            'subjectTrackId': subject_id,
             'persons': persons,
             'trackingWindowSeconds': settings.ai_tracking_window_seconds,
             'awsCalls': 0,

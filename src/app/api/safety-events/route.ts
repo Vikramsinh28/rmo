@@ -21,6 +21,7 @@ export async function GET(request: NextRequest) {
       divisionId: optionalNumber(params.get('divisionId')),
       lobbyId: optionalNumber(params.get('lobbyId')),
       callId: optionalNumber(params.get('callId')),
+    kind: params.get('kind') || undefined,
       search: params.get('search') || undefined,
       dateFrom: params.get('dateFrom') || undefined,
       dateTo: params.get('dateTo') || undefined,

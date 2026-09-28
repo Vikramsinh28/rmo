@@ -18,6 +18,11 @@ STEP_SEPARATION_HYSTERESIS = 0.02  # body heights
 # Seated / upper-body view: hips visible in less than this fraction of the window.
 UPPER_BODY_MAX_HIP_FRACTION = 0.3
 MIN_SHOULDER_WIDTH = 0.08  # fraction of frame height; narrower shoulders are too far to measure
+# Lying down: torso far from vertical for most of the window. A camera looking down at a
+# bed foreshortens the angle, so a wide box with a clearly leaning torso also counts.
+LYING_TORSO_DEG = 60.0
+LYING_WIDE_TORSO_DEG = 45.0
+LYING_MIN_FRACTION = 0.6
 
 
 def _mean(values: Sequence[float]) -> float:
@@ -61,6 +66,7 @@ class TemporalFeatureExtractor:
             'samples': len(window),
             'sampleRate': round(len(window) / span, 2) if span > 0 else None,
             'mode': self._mode(window),
+            'lying': self._lying(window),
             'quality': self._quality(window),
             'posture': self._posture(window),
             'sway': self._sway(window),
@@ -80,6 +86,33 @@ class TemporalFeatureExtractor:
         if hips < UPPER_BODY_MAX_HIP_FRACTION and shoulders >= 0.5:
             return 'upper_body'
         return 'full_body'
+
+    def lying(self, history: List[FeatureSnapshot]) -> Optional[Dict[str, Any]]:
+        """Lying-down state over the recent window (used for people who are not assessed)."""
+        if not history:
+            return None
+        end = history[-1].timestamp
+        return self._lying([s for s in history if _seconds(s.timestamp, end) <= self.window_seconds])
+
+    @staticmethod
+    def _lying(window: List[FeatureSnapshot]) -> Optional[Dict[str, Any]]:
+        samples = [
+            (abs(s.body['torsoAngle']), s.body.get('boxAspect') or 0.0)
+            for s in window
+            if s.body.get('torsoAngle') is not None
+        ]
+        if len(samples) < MIN_GROUP_SAMPLES:
+            return None
+        lying = sum(
+            1 for angle, box_aspect in samples
+            if angle >= LYING_TORSO_DEG or (angle >= LYING_WIDE_TORSO_DEG and box_aspect >= 1.0)
+        )
+        fraction = lying / len(samples)
+        return {
+            'samples': len(samples),
+            'lyingFraction': round(fraction, 3),
+            'lyingDown': fraction >= LYING_MIN_FRACTION,
+        }
 
     @staticmethod
     def _trunk(window: List[FeatureSnapshot]) -> Optional[Dict[str, Any]]:
@@ -110,6 +143,7 @@ class TemporalFeatureExtractor:
             'samples': 0,
             'sampleRate': None,
             'mode': 'full_body',
+            'lying': None,
             'quality': {
                 'mean': None,
                 'faceVisibleFraction': 0.0,
