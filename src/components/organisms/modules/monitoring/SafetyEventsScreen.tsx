@@ -65,6 +65,7 @@ const GROUP_LABEL: Record<string, string> = {
   gait: 'Gait',
   sway: 'Sway',
   posture: 'Posture',
+  trunk: 'Upper-body sway',
   head: 'Head',
   eyes: 'Eyes',
   coordination: 'Coordination',

@@ -25,6 +25,14 @@ GROUP_WEIGHTS: Dict[str, float] = {
     'coordination': 0.10,
 }
 STRONG_GROUPS = {'gait', 'sway', 'posture'}
+# Seated interview view (hips not visible): eyes, head and shoulder sway carry the evidence.
+SEATED_WEIGHTS: Dict[str, float] = {
+    'eyes': 0.30,
+    'trunk': 0.25,
+    'head': 0.25,
+    'coordination': 0.20,
+}
+SEATED_STRONG_GROUPS = {'eyes', 'trunk'}
 GROUP_ELEVATED = 0.6
 GROUP_EVIDENCE = 0.4
 
@@ -100,10 +108,23 @@ def _coordination(f: Dict[str, Any]) -> Tuple[float, str]:
     return _ramp(f.get('jerkRatio'), 1.2, 2.5), 'Jerky arm movements / repeated corrections'
 
 
+def _trunk(f: Dict[str, Any]) -> Tuple[float, str]:
+    score = (
+        0.6 * _ramp(f.get('shoulderSwayStd'), 0.05, 0.15)
+        + 0.25 * _ramp(f.get('shoulderTiltStd'), 3.0, 10.0)
+        + 0.15 * _ramp(f.get('shoulderTiltMeanAbs'), 6.0, 15.0)
+    )
+    return score, (
+        f"Upper-body sway while seated ({f.get('shoulderSwayStd')} shoulder widths, "
+        f"shoulder tilt variation {f.get('shoulderTiltStd')}°)"
+    )
+
+
 SCORERS: Dict[str, Callable[[Dict[str, Any]], Optional[Tuple[float, str]]]] = {
     'gait': _gait,
     'sway': _sway,
     'posture': _posture,
+    'trunk': _trunk,
     'head': _head,
     'eyes': _eyes,
     'coordination': _coordination,
@@ -120,14 +141,19 @@ class Assessment:
     groups: Dict[str, Optional[float]]
     evidence: List[str]
     limitations: List[str]
+    mode: str = 'full_body'
 
 
 def assess(features: Dict[str, Any]) -> Assessment:
     quality = features.get('quality') or {}
+    seated = features.get('mode') == 'upper_body'
+    weights = SEATED_WEIGHTS if seated else GROUP_WEIGHTS
+    strong_groups = SEATED_STRONG_GROUPS if seated else STRONG_GROUPS
+    mode = 'upper_body' if seated else 'full_body'
     limitations: List[str] = []
     if quality.get('faceVisibleFraction', 0.0) < 0.3:
         limitations.append('Face not visible')
-    if quality.get('lowerBodyFraction', 0.0) < 0.3:
+    if not seated and quality.get('lowerBodyFraction', 0.0) < 0.3:
         limitations.append('Lower body not visible — gait unavailable')
     mean_quality = quality.get('mean')
     if mean_quality is not None and mean_quality < MIN_QUALITY:
@@ -136,6 +162,8 @@ def assess(features: Dict[str, Any]) -> Assessment:
     groups: Dict[str, Optional[float]] = {}
     texts: Dict[str, str] = {}
     for name, scorer in SCORERS.items():
+        if name not in weights:
+            continue
         group_features = features.get(name)
         scored = scorer(group_features) if group_features else None
         if scored is None:
@@ -145,7 +173,7 @@ def assess(features: Dict[str, Any]) -> Assessment:
         texts[name] = scored[1]
 
     available = {name: s for name, s in groups.items() if s is not None}
-    available_weight = sum(GROUP_WEIGHTS[name] for name in available)
+    available_weight = sum(weights[name] for name in available)
 
     insufficient = (
         features.get('samples', 0) < MIN_SAMPLES
@@ -157,11 +185,11 @@ def assess(features: Dict[str, Any]) -> Assessment:
     if insufficient:
         if available_weight < MIN_AVAILABLE_WEIGHT:
             limitations.append('Too few visible signals')
-        return Assessment(INSUFFICIENT, None, None, groups, [], limitations)
+        return Assessment(INSUFFICIENT, None, None, groups, [], limitations, mode)
 
-    score = sum(GROUP_WEIGHTS[name] * s for name, s in available.items()) / available_weight
+    score = sum(weights[name] * s for name, s in available.items()) / available_weight
     elevated = [name for name, s in available.items() if s >= GROUP_ELEVATED]
-    if score >= 0.7 and len(elevated) >= 2 and STRONG_GROUPS & set(elevated):
+    if score >= 0.7 and len(elevated) >= 2 and strong_groups & set(elevated):
         candidate = HIGH
     elif score >= 0.5 and len(elevated) >= 2:
         candidate = ELEVATED
@@ -177,7 +205,7 @@ def assess(features: Dict[str, Any]) -> Assessment:
 
     ranked = sorted(available.items(), key=lambda item: item[1], reverse=True)
     evidence = [texts[name] for name, s in ranked if s >= GROUP_EVIDENCE]
-    return Assessment(candidate, round(score, 3), confidence, groups, evidence, limitations)
+    return Assessment(candidate, round(score, 3), confidence, groups, evidence, limitations, mode)
 
 
 @dataclass
@@ -341,6 +369,7 @@ class RiskEngine:
             'evidence': [] if abstained else result.evidence,
             'limitations': result.limitations,
             'groups': result.groups,
+            'mode': result.mode,
             'episode': state.episode.to_dict() if state.episode else None,
             'modelVersion': MODEL_VERSION,
         }

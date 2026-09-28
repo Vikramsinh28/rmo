@@ -416,6 +416,31 @@ describe('Safety events', () => {
     expect(statusBody.everStarted).toBe(true);
   });
 
+  it('reopens the AI session when the AI service lost it', async () => {
+    const original = (global.fetch as jest.Mock).getMockImplementation()!;
+    let lost = true;
+    const calls: string[] = [];
+    (global.fetch as jest.Mock).mockImplementation(async (input, init) => {
+      const url = String(input);
+      calls.push(url);
+      if (url.includes('/frames') && lost) {
+        return new Response('{"detail":"Session not found"}', { status: 404 });
+      }
+      if (url.includes('/sessions/start')) lost = false;
+      return original(input, init);
+    });
+    framePersons = [{
+      ...personWith(null, 'NORMAL'),
+      tracking: { boundingBox: { x: 0.1, y: 0.1, width: 0.2, height: 0.6 } },
+    }];
+    const response = await frameAI(frameRequest(monitor, callId), context(callId));
+    const body = (await response.json()).data;
+    expect(response.status).toBe(200);
+    expect(calls.filter(url => url.includes('/sessions/start'))).toHaveLength(1);
+    expect(calls.filter(url => url.includes('/frames'))).toHaveLength(2);
+    expect(body.overlay).toHaveLength(1);
+  });
+
   it('does not persist or expose impairment output without the entitlement', async () => {
     await prisma.divisionAIEntitlement.update({
       where: { divisionId },

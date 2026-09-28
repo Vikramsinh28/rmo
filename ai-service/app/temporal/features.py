@@ -15,6 +15,9 @@ WALKING_SCALE_RATE = 0.04  # |d ln(bodyHeight)/dt| per second — walking toward
 MIN_MOTION_BODY_HEIGHT = 0.2  # fraction of frame height; smaller bodies give noisy sway/gait
 SWAY_SMOOTHING_SECONDS = 1.0  # removes step-to-step hip oscillation while walking
 STEP_SEPARATION_HYSTERESIS = 0.02  # body heights
+# Seated / upper-body view: hips visible in less than this fraction of the window.
+UPPER_BODY_MAX_HIP_FRACTION = 0.3
+MIN_SHOULDER_WIDTH = 0.08  # fraction of frame height; narrower shoulders are too far to measure
 
 
 def _mean(values: Sequence[float]) -> float:
@@ -57,13 +60,47 @@ class TemporalFeatureExtractor:
             'windowSeconds': round(span, 2),
             'samples': len(window),
             'sampleRate': round(len(window) / span, 2) if span > 0 else None,
+            'mode': self._mode(window),
             'quality': self._quality(window),
             'posture': self._posture(window),
             'sway': self._sway(window),
             'gait': self._gait(window),
+            'trunk': self._trunk(window),
             'head': self._head(window),
             'eyes': self._eyes(window),
             'coordination': self._coordination(window),
+        }
+
+    @staticmethod
+    def _mode(window: List[FeatureSnapshot]) -> str:
+        """'upper_body' when shoulders are seen but hips mostly are not (seated at a desk)."""
+        n = len(window)
+        hips = sum(1 for s in window if s.body.get('hipCenter')) / n
+        shoulders = sum(1 for s in window if s.body.get('shoulderCenter')) / n
+        if hips < UPPER_BODY_MAX_HIP_FRACTION and shoulders >= 0.5:
+            return 'upper_body'
+        return 'full_body'
+
+    @staticmethod
+    def _trunk(window: List[FeatureSnapshot]) -> Optional[Dict[str, Any]]:
+        """Upper-body sway from shoulders: lateral shift in shoulder widths and sideways tilt."""
+        series = [
+            (s.body['shoulderCenter']['x'], s.body['shoulderWidth'], s.body.get('shoulderAlignment'))
+            for s in window
+            if s.body.get('shoulderCenter') and s.body.get('shoulderWidth')
+        ]
+        if len(series) < MIN_GROUP_SAMPLES:
+            return None
+        width = _mean([w for _, w, _ in series])
+        if width < MIN_SHOULDER_WIDTH:
+            return None
+        xs = [x for x, _, _ in series]
+        tilts = [t for _, _, t in series if t is not None]
+        return {
+            'samples': len(series),
+            'shoulderSwayStd': _r(_std(xs) / width),
+            'shoulderTiltStd': _r(_std(tilts), 2) if len(tilts) >= 2 else None,
+            'shoulderTiltMeanAbs': _r(_mean([abs(t) for t in tilts]), 2) if tilts else None,
         }
 
     @staticmethod
@@ -72,6 +109,7 @@ class TemporalFeatureExtractor:
             'windowSeconds': 0.0,
             'samples': 0,
             'sampleRate': None,
+            'mode': 'full_body',
             'quality': {
                 'mean': None,
                 'faceVisibleFraction': 0.0,
@@ -82,6 +120,7 @@ class TemporalFeatureExtractor:
             'posture': None,
             'sway': None,
             'gait': None,
+            'trunk': None,
             'head': None,
             'eyes': None,
             'coordination': None,

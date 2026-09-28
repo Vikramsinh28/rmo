@@ -506,13 +506,34 @@ export async function ingestCallAIFrame(actor: Actor, callId: number, frame: Arr
     throw new RmoError('AI processing is not running for this call.', 409);
   }
 
+  const forward = () => aiFetch(`/sessions/${job.id}/frames`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/octet-stream' },
+    body: frame,
+  });
   let response: Response;
   try {
-    response = await aiFetch(`/sessions/${job.id}/frames`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/octet-stream' },
-      body: frame,
-    });
+    response = await forward();
+    if (response.status === 404) {
+      // The AI service keeps sessions in memory; after a restart, reopen this job's session.
+      const resumed = await aiFetch('/sessions/start', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          jobId: job.id,
+          callId,
+          divisionId: call.divisionId,
+          lobbyId: call.lobbyId,
+        }),
+      });
+      aiLog('AI_SESSION_RESUMED', {
+        jobId: job.id,
+        callId,
+        httpStatus: resumed.status,
+        liveCallAffected: false,
+      }, resumed.ok ? 'info' : 'warn');
+      if (resumed.ok) response = await forward();
+    }
   } catch {
     aiLog('AI_FRAME_FORWARD_FAILED', {
       jobId: job.id,

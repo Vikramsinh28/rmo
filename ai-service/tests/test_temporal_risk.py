@@ -312,3 +312,81 @@ def test_distant_person_has_no_sway_or_gait_signal():
     ))
     assert features['sway'] is None
 
+
+def _seated(i: int, shoulder_x=0.5, tilt=0.5, eyes=0.9, head=None, width=0.25):
+    snap = _snapshot(i, eyes=eyes, head=head or {'pitch': 2.0, 'yaw': 1.0, 'roll': 1.0})
+    snap.body.update({
+        'lowerBodyVisible': False,
+        'torsoAngle': None,
+        'hipCenter': None,
+        'bodyHeight': None,
+        'shoulderCenter': {'x': shoulder_x, 'y': 0.55},
+        'shoulderWidth': width,
+        'shoulderAlignment': tilt,
+    })
+    return snap
+
+
+def _seated_history(n: int, fn=lambda i: {}):
+    return [_seated(i, **fn(i)) for i in range(n)]
+
+
+def _drowsy_eyes(i):
+    return 0.1 if i % 15 < 10 else 0.9
+
+
+def _swaying(i):
+    phase = math.sin(2 * math.pi * i * 0.2 / 2.0)
+    return {'shoulder_x': 0.5 + 0.055 * phase, 'tilt': 9.0 * phase}
+
+
+def test_calm_seated_person_is_normal_not_insufficient():
+    features = TemporalFeatureExtractor(10).compute(_seated_history(50))
+    assert features['mode'] == 'upper_body'
+    assert features['sway'] is None and features['posture'] is None
+    assert features['trunk']['shoulderSwayStd'] == 0.0
+    result = assess(features)
+    assert result.candidate == NORMAL
+    assert result.mode == 'upper_body'
+    assert 'Lower body not visible — gait unavailable' not in result.limitations
+
+
+def test_seated_drowsy_and_swaying_is_elevated():
+    features = TemporalFeatureExtractor(10).compute(_seated_history(
+        50, lambda i: {**_swaying(i), 'eyes': _drowsy_eyes(i)},
+    ))
+    result = assess(features)
+    assert result.groups['eyes'] >= 0.6 and result.groups['trunk'] >= 0.6
+    assert result.candidate == ELEVATED
+    assert any('seated' in text for text in result.evidence)
+
+
+def test_seated_drowsy_swaying_with_head_instability_is_high():
+    def impaired(i):
+        wobble = {'pitch': 10.0 if i % 2 else -6.0, 'yaw': 0.0, 'roll': 14.0 if i % 2 else 4.0}
+        return {**_swaying(i), 'eyes': _drowsy_eyes(i), 'head': wobble}
+
+    result = assess(TemporalFeatureExtractor(10).compute(_seated_history(50, impaired)))
+    assert result.candidate == HIGH
+
+
+def test_seated_single_signal_is_capped_at_monitoring():
+    result = assess(TemporalFeatureExtractor(10).compute(_seated_history(
+        50, lambda i: {'eyes': 0.05},
+    )))
+    assert result.groups['eyes'] >= 0.6
+    assert result.candidate == MONITORING
+
+
+def test_seated_talking_fidget_stays_normal():
+    features = TemporalFeatureExtractor(10).compute(_seated_history(
+        50, lambda i: {'shoulder_x': 0.5 + 0.012 * math.sin(i), 'tilt': 2.0 * math.sin(i)},
+    ))
+    assert assess(features).candidate == NORMAL
+
+
+def test_full_body_view_ignores_seated_trunk_group():
+    features = TemporalFeatureExtractor(10).compute(_history(50))
+    assert features['mode'] == 'full_body'
+    assert 'trunk' not in assess(features).groups
+

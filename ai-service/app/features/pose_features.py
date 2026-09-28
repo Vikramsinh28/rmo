@@ -94,10 +94,12 @@ class PoseFeatureExtractor:
                 torso_angle = math.degrees(math.atan2(dx, dy))
 
         shoulder_alignment: Optional[float] = None
+        shoulder_width: Optional[float] = None
         if points[LEFT_SHOULDER] and points[RIGHT_SHOULDER]:
             ls, rs = points[LEFT_SHOULDER], points[RIGHT_SHOULDER]
             dx = ls[0] - rs[0]
             dy = ls[1] - rs[1]
+            shoulder_width = math.hypot(dx, dy)
             if abs(dx) > 1e-4:
                 # Tilt of the shoulder line from horizontal, degrees.
                 shoulder_alignment = math.degrees(math.atan2(dy, abs(dx)))
@@ -142,6 +144,11 @@ class PoseFeatureExtractor:
             'hipCenter': (
                 {'x': round(hip_mid[0], 4), 'y': round(hip_mid[1], 4)} if hip_mid else None
             ),
+            'shoulderCenter': (
+                {'x': round(shoulder_mid[0], 4), 'y': round(shoulder_mid[1], 4)}
+                if shoulder_mid else None
+            ),
+            'shoulderWidth': round(shoulder_width, 4) if shoulder_width else None,
             'ankles': {
                 'left': (
                     {'x': round(points[LEFT_ANKLE][0], 4), 'y': round(points[LEFT_ANKLE][1], 4)}
@@ -178,6 +185,8 @@ class PoseFeatureExtractor:
             'torsoAngle': None,
             'shoulderAlignment': None,
             'hipCenter': None,
+            'shoulderCenter': None,
+            'shoulderWidth': None,
             'ankles': {'left': None, 'right': None},
             'bodyHeight': None,
             'bodyVisibility': round(min(1.0, person_box.height / 0.7), 3) if body_visible else 0.0,
