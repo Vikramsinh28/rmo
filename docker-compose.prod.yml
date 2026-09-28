@@ -15,3 +15,25 @@ services:
       options:
         max-size: '10m'
         max-file: '3'
+
+  # Python AI service (tracking, pose, face signals, visual-indicator risk engine).
+  # Bound to 127.0.0.1 so only the app on this host can reach it (AI_SERVICE_URL).
+  ai-service:
+    image: ${RMO_AI_IMAGE:-ghcr.io/vikramsinh28/rmo-ai-service:latest}
+    container_name: rmo-ai-service
+    restart: unless-stopped
+    network_mode: host
+    env_file:
+      - .env
+    command: ['uvicorn', 'app.main:app', '--host', '127.0.0.1', '--port', '8090']
+    healthcheck:
+      test: ['CMD', 'python', '-c', "import urllib.request as u; u.urlopen('http://127.0.0.1:8090/health', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    logging:
+      driver: json-file
+      options:
+        max-size: '10m'
+        max-file: '3'
