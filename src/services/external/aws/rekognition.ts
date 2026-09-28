@@ -220,7 +220,7 @@ export class MockFaceIndexProvider implements FaceIndexProvider, FaceSearchProvi
   }
 }
 
-function useMockFaceProvider() {
+function isMockFaceProvider() {
   return (
     process.env.FACE_RECOGNITION_PROVIDER === 'mock'
     || process.env.FACE_ENROLLMENT_PROVIDER === 'mock'
@@ -228,7 +228,7 @@ function useMockFaceProvider() {
 }
 
 export function getFaceIndexProvider(): FaceIndexProvider {
-  if (useMockFaceProvider()) {
+  if (isMockFaceProvider()) {
     return new MockFaceIndexProvider();
   }
   const client = createRekognitionClient();
@@ -241,7 +241,7 @@ export function getFaceIndexProvider(): FaceIndexProvider {
 }
 
 export function getFaceSearchProvider(): FaceSearchProvider {
-  if (useMockFaceProvider()) {
+  if (isMockFaceProvider()) {
     return new MockFaceIndexProvider();
   }
   const client = createRekognitionClient();

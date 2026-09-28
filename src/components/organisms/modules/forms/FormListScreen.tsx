@@ -42,20 +42,26 @@ export function FormListScreen() {
       .catch(() => setDivisions([]));
   }, [role]);
 
-  useEffect(() => {
+  const params = new URLSearchParams({ pageSize: '50' });
+  if (search) params.set('search', search);
+  if (status) params.set('status', status);
+  if (divisionId) params.set('divisionId', divisionId);
+  const queryString = params.toString();
+  const [requested, setRequested] = useState(queryString);
+  if (requested !== queryString) {
+    setRequested(queryString);
     setLoading(true);
-    const params = new URLSearchParams({ pageSize: '50' });
-    if (search) params.set('search', search);
-    if (status) params.set('status', status);
-    if (divisionId) params.set('divisionId', divisionId);
-    apiRequest<Page<FormRow>>(`/api/admin/forms?${params.toString()}`)
+  }
+
+  useEffect(() => {
+    apiRequest<Page<FormRow>>(`/api/admin/forms?${queryString}`)
       .then(result => {
         setItems(result.items);
         setError('');
       })
       .catch(cause => setError(cause instanceof Error ? cause.message : 'Unable to load forms'))
       .finally(() => setLoading(false));
-  }, [search, status, divisionId]);
+  }, [queryString]);
 
   return (
     <div className="flex flex-col gap-4 px-4 lg:px-6">

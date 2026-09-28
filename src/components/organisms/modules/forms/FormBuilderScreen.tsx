@@ -94,15 +94,21 @@ export function FormBuilderScreen({ formId }: { formId?: number }) {
       .catch(() => setLobbies([]));
   }, []);
 
-  useEffect(() => {
-    if (role === 'DIVISION_ADMIN' && homeDivisionId) {
-      setDivisionId(String(homeDivisionId));
-    }
-  }, [role, homeDivisionId]);
+  const homeDivision = role === 'DIVISION_ADMIN' && homeDivisionId ? String(homeDivisionId) : '';
+  const [appliedHomeDivision, setAppliedHomeDivision] = useState('');
+  if (homeDivision && appliedHomeDivision !== homeDivision) {
+    setAppliedHomeDivision(homeDivision);
+    setDivisionId(homeDivision);
+  }
+
+  const [requestedFormId, setRequestedFormId] = useState(formId);
+  if (requestedFormId !== formId) {
+    setRequestedFormId(formId);
+    if (formId) setLoading(true);
+  }
 
   useEffect(() => {
     if (!formId) return;
-    setLoading(true);
     apiRequest<LoadedForm>(`/api/admin/forms/${formId}`)
       .then(form => {
         apply(form);
