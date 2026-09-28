@@ -12,6 +12,7 @@ export const siteConfig = {
     roles: '/roles',
     audit: '/audit',
     crew: '/crew',
+    crewFaceEnrollment: '/crew/face-enrollment',
     monitoring: '/monitoring',
     monitoringDesk: '/monitoring/desk',
     monitoringHistory: '/monitoring/history',

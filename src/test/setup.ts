@@ -29,7 +29,11 @@ export async function cleanupDatabase() {
   try {
     // Clean up in reverse order of dependencies with explicit transaction
     await testPrisma.$transaction(async tx => {
+      await tx.safetyEvent.deleteMany({});
       await tx.recordingSegment.deleteMany({});
+      await tx.aIProcessingJob.deleteMany({});
+      await tx.userFaceEnrollment.deleteMany({});
+      await tx.divisionFaceCollection.deleteMany({});
       await tx.roomParticipant.deleteMany({});
       await tx.lobbyCall.deleteMany({});
       await tx.lobbyRoom.deleteMany({});

@@ -18,6 +18,7 @@ import {
   presentAISummary,
   resolveDivisionAICapabilities,
 } from '@/services/internal/rmo/ai-entitlement';
+import { faceEnrollmentStatusByUserIds } from '@/services/internal/rmo/face-enrollment';
 import { hashPassword, validatePassword } from '@/lib/utils';
 import { AccountStatus, OrgStatus, Prisma, RmoRole } from '@/lib/prisma/generated/client';
 
@@ -548,7 +549,12 @@ export async function listUsers(actor: Actor, query: ListQuery & { role?: string
     prisma.user.count({ where }),
   ]);
   const signedIn = await lastSignIns(rows.map(row => row.id));
-  const items = rows.map(row => ({ ...row, lastLoginAt: signedIn.get(row.id) ?? null }));
+  const faceStatuses = await faceEnrollmentStatusByUserIds(rows.map(row => row.id));
+  const items = rows.map(row => ({
+    ...row,
+    lastLoginAt: signedIn.get(row.id) ?? null,
+    faceEnrollmentStatus: faceStatuses.get(row.id) || 'NOT_ENROLLED',
+  }));
   return { items, total, page, pageSize };
 }
 

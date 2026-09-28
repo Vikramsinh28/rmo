@@ -17,6 +17,9 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { toast } from 'sonner';
 import { apiRequest } from '../administration/api';
 import { AICapabilityBadge } from './AICapabilityBadge';
+import { FaceRecognizeControls } from './FaceRecognizeControls';
+import { LiveDetectionOverlay, type LiveOverlayPerson } from './LiveDetectionOverlay';
+import { LiveSafetyReviewDrawer } from './LiveSafetyReviewDrawer';
 import { captureLiveDesk, recordDesk } from './desk-recorder';
 import { currentLobbyMedia, prepareLobbyMedia } from './lobby-media';
 
@@ -27,6 +30,12 @@ interface Signal {
   description: { type: string; sdp: string } | null;
   candidate: { candidate: string; sdpMid: string | null; sdpMLineIndex: number | null } | null;
 }
+
+const AI_FRAME_INTERVAL_MS = Math.max(
+  100,
+  Number(process.env.NEXT_PUBLIC_AI_FRAME_INTERVAL_MS) || 200,
+);
+const AI_STATUS_REFRESH_MS = 2000;
 
 const STUN_ONLY: RTCIceServer[] = [
   { urls: 'stun:stun.l.google.com:19302' },
@@ -96,6 +105,8 @@ export function CallMedia({
   const [elapsed, setElapsed] = useState('00:00');
   const [capturing, setCapturing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [overlay, setOverlay] = useState<LiveOverlayPerson[]>([]);
+  const [showOverlay, setShowOverlay] = useState(true);
   const mainRef = useRef<HTMLVideoElement>(null);
   const previewRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -526,9 +537,90 @@ export function CallMedia({
     return () => document.removeEventListener('fullscreenchange', onChange);
   }, []);
 
+  // Phase 6: sample displayed video frames for the AI consumer. Does not alter WebRTC.
+  useEffect(() => {
+    if (role !== 'monitor') return undefined;
+    let cancelled = false;
+    let posting = false;
+    let running = false;
+    let sampled = 0;
+    console.info(
+      `[rmo-ai] AI_CLIENT_SAMPLER_ARMED callId=${callId} intervalMs=${AI_FRAME_INTERVAL_MS}`,
+    );
+    const canvas = document.createElement('canvas');
+    const refreshStatus = async () => {
+      try {
+        const status = await apiRequest<{
+          processing: { status: string; framesProcessed?: number } | null;
+        }>(`/api/monitoring/calls/${callId}/ai/status`);
+        running = status.processing?.status === 'RUNNING';
+      } catch {
+        running = false;
+      }
+      if (!running && !cancelled) setOverlay([]);
+    };
+    void refreshStatus();
+    const statusTimer = window.setInterval(() => void refreshStatus(), AI_STATUS_REFRESH_MS);
+    const timer = window.setInterval(() => {
+      if (cancelled || posting || !running) return;
+      const video = mainRef.current;
+      if (!video || video.readyState < 2 || video.videoWidth < 2) return;
+      posting = true;
+      void (async () => {
+        try {
+          canvas.width = Math.min(video.videoWidth, 640);
+          canvas.height = Math.round(
+            (canvas.width / video.videoWidth) * video.videoHeight,
+          );
+          const context = canvas.getContext('2d');
+          if (!context) return;
+          context.drawImage(video, 0, 0, canvas.width, canvas.height);
+          const blob = await new Promise<Blob | null>(resolve => {
+            canvas.toBlob(resolve, 'image/jpeg', 0.7);
+          });
+          if (!blob || cancelled) return;
+          const result = await apiRequest<{ overlay?: LiveOverlayPerson[] }>(
+            `/api/monitoring/calls/${callId}/ai/frames`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'image/jpeg' },
+              body: blob,
+            },
+          );
+          if (!cancelled) setOverlay(Array.isArray(result?.overlay) ? result.overlay : []);
+          sampled += 1;
+          if (sampled === 1 || sampled % 25 === 0) {
+            console.info(
+              `[rmo-ai] AI_CLIENT_FRAME_SENT callId=${callId} samples=${sampled} `
+              + `bytes=${blob.size} video=${video.videoWidth}x${video.videoHeight}`,
+            );
+          }
+        } catch (error) {
+          console.warn(
+            `[rmo-ai] AI_CLIENT_FRAME_SKIPPED callId=${callId} `
+            + `reason=${error instanceof Error ? error.message : 'unknown'} liveCallAffected=false`,
+          );
+        } finally {
+          posting = false;
+        }
+      })();
+    }, AI_FRAME_INTERVAL_MS);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+      window.clearInterval(statusTimer);
+      setOverlay([]);
+      console.info(`[rmo-ai] AI_CLIENT_SAMPLER_STOPPED callId=${callId} samples=${sampled}`);
+    };
+  }, [callId, role]);
+
   return (
     <div ref={stageRef} className="relative flex min-h-0 flex-1 flex-col bg-zinc-950 text-white">
       <video ref={mainRef} className="absolute inset-0 h-full w-full bg-black object-contain" autoPlay playsInline muted />
+      {role === 'monitor' && showOverlay && overlay.length ? (
+        <LiveDetectionOverlay videoRef={mainRef} persons={overlay} />
+      ) : null}
+      {role === 'monitor' ? <LiveSafetyReviewDrawer callId={callId} /> : null}
       <audio ref={audioRef} autoPlay />
       <div className="relative z-10 flex items-start justify-between gap-3 p-4">
         <div>
@@ -548,7 +640,27 @@ export function CallMedia({
               {status.startsWith('Connection lost') ? 'Reconnecting' : 'Live'}
             </span>
           </div>
-          <AICapabilityBadge callId={callId} />
+          <AICapabilityBadge
+            callId={callId}
+            canControl={role === 'monitor'}
+            autoStart={role === 'monitor'}
+          />
+          {role === 'monitor' ? (
+            <label className="flex items-center gap-2 rounded-full bg-black/50 px-3 py-1 text-xs">
+              <input
+                type="checkbox"
+                checked={showOverlay}
+                onChange={event => setShowOverlay(event.target.checked)}
+                className="accent-orange-400"
+              />
+              Show AI boxes on video
+            </label>
+          ) : null}
+          <FaceRecognizeControls
+            callId={callId}
+            videoRef={mainRef}
+            enabled={role === 'monitor'}
+          />
         </div>
       </div>
       <div className="relative z-10 mt-auto flex flex-col items-center gap-3 px-4 pb-5">

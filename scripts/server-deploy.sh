@@ -17,6 +17,9 @@ if [ -z "${RMO_IMAGE:-}" ]; then
 fi
 
 docker pull "${RMO_IMAGE}"
+if [ -n "${RMO_AI_IMAGE:-}" ]; then
+  docker pull "${RMO_AI_IMAGE}"
+fi
 
 if command -v pm2 >/dev/null 2>&1 && pm2 describe rmo >/dev/null 2>&1; then
   pm2 delete rmo

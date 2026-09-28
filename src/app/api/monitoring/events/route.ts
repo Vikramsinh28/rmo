@@ -6,9 +6,14 @@ export const dynamic = 'force-dynamic';
 
 function visible(
   actor: { rmoRole: string; homeDivisionId: number | null; homeLobbyId: number | null },
-  event: { divisionId: number; lobbyId: number },
+  event: { type: string; divisionId: number; lobbyId: number },
 ) {
   if (actor.rmoRole === 'SYSTEM_ADMIN') return true;
+  if (event.type.startsWith('safety.')) {
+    if (actor.rmoRole === 'SUPER_ADMIN') return true;
+    return (actor.rmoRole === 'DIVISION_ADMIN' || actor.rmoRole === 'DIVISION_MONITOR')
+      && actor.homeDivisionId === event.divisionId;
+  }
   if (actor.rmoRole === 'DIVISION_ADMIN' || actor.rmoRole === 'DIVISION_MONITOR') {
     return actor.homeDivisionId === event.divisionId;
   }

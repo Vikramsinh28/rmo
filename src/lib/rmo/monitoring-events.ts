@@ -1,9 +1,19 @@
+export interface SafetyAlertPayload {
+  eventId: number;
+  severity: string;
+  status: string;
+  trackId: string;
+  subjectName: string | null;
+  lobbyName: string | null;
+}
+
 export interface MonitoringEvent {
   type: string;
   divisionId: number;
   lobbyId: number;
   callId?: number;
   recordingId?: number;
+  safety?: SafetyAlertPayload;
   at: string;
 }
 

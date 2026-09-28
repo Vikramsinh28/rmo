@@ -39,6 +39,7 @@ interface UserRow {
   homeDivision?: { name: string } | null;
   homeLobby?: { name: string } | null;
   lastLoginAt?: string | null;
+  faceEnrollmentStatus?: string;
   sourceEnrollment?: { id: number; publicCode: string; status: string } | null;
 }
 
@@ -297,6 +298,7 @@ export function UserScreen({
                 <th className="px-4 py-3 font-medium">Name</th>
                 <th className="px-4 py-3 font-medium">User ID</th>
                 <th className="px-4 py-3 font-medium">Role</th>
+                <th className="px-4 py-3 font-medium">Face</th>
                 <th className="px-4 py-3 font-medium">Zone</th>
                 <th className="px-4 py-3 font-medium">Division</th>
                 <th className="px-4 py-3 font-medium">Lobby</th>
@@ -314,6 +316,17 @@ export function UserScreen({
                   </td>
                   <td className="px-4 py-3">{row.loginId || '—'}</td>
                   <td className="px-4 py-3">{row.rmoRole}</td>
+                  <td className="px-4 py-3 text-xs">
+                    {row.rmoRole === 'CREW_USER' ? (
+                      row.faceEnrollmentStatus === 'ENROLLED' ? (
+                        <span className="text-emerald-700">● Face enrolled</span>
+                      ) : (
+                        <span className="text-zinc-500">○ Face not enrolled</span>
+                      )
+                    ) : (
+                      '—'
+                    )}
+                  </td>
                   <td className="px-4 py-3">{row.homeZone?.name || '—'}</td>
                   <td className="px-4 py-3">{row.homeDivision?.name || '—'}</td>
                   <td className="px-4 py-3">{row.homeLobby?.name || '—'}</td>

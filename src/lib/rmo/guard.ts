@@ -34,7 +34,14 @@ export async function requireActor(
 
 export function adminErrorResponse(error: unknown) {
   if (error instanceof RmoError) {
-    return NextResponse.json({ success: false, message: error.message }, { status: error.status });
+    return NextResponse.json(
+      {
+        success: false,
+        message: error.message,
+        ...(error.code ? { error: error.code } : {}),
+      },
+      { status: error.status },
+    );
   }
   console.error(error);
   return NextResponse.json(

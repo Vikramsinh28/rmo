@@ -1,5 +1,6 @@
 'use client';
 
+import { SafetyAlertCenter } from '@/components/organisms/modules/monitoring/SafetyAlertCenter';
 import { Sidebar } from '@/components/organisms/shared/navigation/Sidebar';
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
 import { useAuthStore } from '@/store/auth';
@@ -34,6 +35,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     <ThemeProvider defaultTheme="system" attribute="class">
       <SidebarProvider defaultOpen={false} className="h-svh overflow-hidden">
         <Sidebar />
+        <SafetyAlertCenter />
         <SidebarInset className="min-h-0 overflow-hidden md:h-[calc(100svh-1rem)]">
           <div className="flex h-full min-h-0 flex-1 flex-col bg-muted/40">
             {live ? null : <ConsoleHeader />}

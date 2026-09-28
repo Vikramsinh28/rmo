@@ -30,5 +30,38 @@ services:
       - "7882:7882/udp"
     restart: unless-stopped
 
+  # Phase 6 — optional AI frame consumer. Does not own live WebRTC calls.
+  ai-service:
+    build:
+      context: ./ai-service
+    container_name: rmo-kostra-ai-service
+    environment:
+      AI_SERVICE_TOKEN: ${AI_SERVICE_TOKEN:-local-ai-service-token}
+      AI_FRAME_INTERVAL_MS: ${AI_FRAME_INTERVAL_MS:-200}
+      AI_DEV_TEST_STREAM: ${AI_DEV_TEST_STREAM:-false}
+      AI_MAX_FRAME_BYTES: ${AI_MAX_FRAME_BYTES:-512000}
+      AI_TRACKING_ENABLED: ${AI_TRACKING_ENABLED:-true}
+      AI_TRACKING_PROVIDER: ${AI_TRACKING_PROVIDER:-yolo}
+      AI_TRACKER_PROVIDER: ${AI_TRACKER_PROVIDER:-bytetrack}
+      AI_FACE_PROVIDER: ${AI_FACE_PROVIDER:-mediapipe}
+      AI_POSE_DEVICE: ${AI_POSE_DEVICE:-cpu}
+      AI_POSE_THREADS: ${AI_POSE_THREADS:-0}
+      AI_RISK_ENABLED: ${AI_RISK_ENABLED:-true}
+      AI_RISK_WINDOW_SECONDS: ${AI_RISK_WINDOW_SECONDS:-10}
+      AI_RISK_EVAL_INTERVAL_MS: ${AI_RISK_EVAL_INTERVAL_MS:-1000}
+      AI_TRACKING_WINDOW_SECONDS: ${AI_TRACKING_WINDOW_SECONDS:-30}
+      AI_TRACKING_MAX_LOST_FRAMES: ${AI_TRACKING_MAX_LOST_FRAMES:-15}
+      IMPAIRMENT_DETECTOR_PROVIDER: ${IMPAIRMENT_DETECTOR_PROVIDER:-mock}
+      IMPAIRMENT_MODEL_DEVICE: ${IMPAIRMENT_MODEL_DEVICE:-cpu}
+      IMPAIRMENT_MODEL_TIMEOUT_MS: ${IMPAIRMENT_MODEL_TIMEOUT_MS:-5000}
+    ports:
+      - "${AI_SERVICE_PORT:-8090}:8090"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8090/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
 volumes:
   postgres_data:
