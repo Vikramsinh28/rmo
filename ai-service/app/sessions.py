@@ -5,7 +5,7 @@ import threading
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
 from app.config import settings
 
@@ -30,12 +30,14 @@ class SessionState:
     stopped_at: Optional[datetime] = None
     last_accepted_at: Optional[datetime] = None
     error_message: Optional[str] = None
+    latest_tracking: Optional[Dict[str, Any]] = None
     _lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
 
     def snapshot(self) -> dict:
         with self._lock:
             elapsed = max((utc_now() - self.started_at).total_seconds(), 0.001)
             fps = self.frames_processed / elapsed if self.status == 'RUNNING' else 0.0
+            tracking = self.latest_tracking or {}
             return {
                 'jobId': self.job_id,
                 'callId': self.call_id,
@@ -49,6 +51,14 @@ class SessionState:
                 'startedAt': self.started_at.isoformat(),
                 'stoppedAt': self.stopped_at.isoformat() if self.stopped_at else None,
                 'errorMessage': self.error_message,
+                'personCount': tracking.get('personCount', 0),
+                'persons': tracking.get('persons', []),
+                'tracking': {
+                    'enabled': settings.ai_tracking_enabled,
+                    'detector': tracking.get('detector'),
+                    'timestamp': tracking.get('timestamp'),
+                    'awsCalls': tracking.get('awsCalls', 0),
+                },
             }
 
 
@@ -84,6 +94,8 @@ class SessionStore:
             return session
 
     def stop(self, job_id: int) -> Optional[SessionState]:
+        from app.processing.pipeline import drop_session_pipeline
+
         with self._lock:
             session = self._sessions.get(job_id)
             if not session:
@@ -93,8 +105,10 @@ class SessionStore:
             session.status = 'STOPPING'
             session.status = 'STOPPED'
             session.stopped_at = utc_now()
+            session.latest_tracking = None
             logger.info('AI_SESSION_STOPPED jobId=%s callId=%s', job_id, session.call_id)
-            return session
+        drop_session_pipeline(job_id)
+        return session
 
     def get(self, job_id: int) -> Optional[SessionState]:
         with self._lock:
@@ -120,18 +134,38 @@ class SessionStore:
                 session.last_accepted_at = now
                 session.frames_processed += 1
                 session.last_frame_at = now
+                if settings.ai_tracking_enabled:
+                    tracking = self._run_tracking(job_id, payload)
+                    if tracking is not None:
+                        session.latest_tracking = tracking
                 if session.frames_processed == 1 or session.frames_processed % 5 == 0:
                     logger.info(
                         'AI_FRAME_PROCESSED jobId=%s callId=%s framesReceived=%s '
-                        'framesProcessed=%s bytes=%s',
+                        'framesProcessed=%s bytes=%s persons=%s',
                         job_id,
                         session.call_id,
                         session.frames_received,
                         session.frames_processed,
                         len(payload),
+                        (session.latest_tracking or {}).get('personCount', 0),
                     )
-            # Frame bytes are discarded after counting — no inference in Phase 6.
+            # Frame bytes discarded after processing — never persisted.
             return session
+
+    def _run_tracking(self, job_id: int, payload: bytes) -> Optional[Dict[str, Any]]:
+        try:
+            from app.processing.decode import decode_image_bgr
+            from app.processing.pipeline import get_session_pipeline
+
+            frame = decode_image_bgr(payload)
+            pipeline = get_session_pipeline(job_id)
+            return pipeline.process(str(job_id), frame, raw_bytes=payload)
+        except Exception:
+            logger.exception(
+                'AI_TRACKING_FAILED jobId=%s liveCallAffected=false',
+                job_id,
+            )
+            return None
 
     def mark_error(self, job_id: int, message: str) -> None:
         session = self.get(job_id)
@@ -157,18 +191,14 @@ class SessionStore:
 
     def _run_test_stream(self) -> None:
         """DEVELOPMENT ONLY — synthesizes tiny JPEG-like payloads without a camera."""
-        interval = max(settings.ai_frame_interval_ms, 1) / 1000.0
-        # Minimal JPEG SOI/EOI markers; not a real image decoder path.
-        fake = b'\xff\xd8\xff\xd9'
-        while not self._stop_test.is_set():
+        while not self._stop_test.wait(settings.ai_frame_interval_ms / 1000.0):
             with self._lock:
                 running = [s for s in self._sessions.values() if s.status == 'RUNNING']
             for session in running:
                 try:
-                    self.ingest_frame(session.job_id, fake)
-                except Exception as exc:  # noqa: BLE001
-                    self.mark_error(session.job_id, str(exc))
-            time.sleep(interval)
+                    self.ingest_frame(session.job_id, b'\xff\xd8\xff\xd9')
+                except Exception:
+                    continue
 
 
 store = SessionStore()

@@ -400,6 +400,12 @@ export const ALL_ROUTES: RouteConfig[] = [
     accessTo: { POST: [SYSTEM_ADMIN, DIVISION_MONITOR] },
   },
   {
+    // Phase 9A INTERNAL/DEV ONLY — not wired to live sessions.
+    path: '/api/ai/impairment/analyze',
+    isPublic: false,
+    accessTo: { POST: [SYSTEM_ADMIN] },
+  },
+  {
     path: '/api/monitoring/calls/[id]/accept',
     isPublic: false,
     accessTo: { POST: [LOBBY_USER] },

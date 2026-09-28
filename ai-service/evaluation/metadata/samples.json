@@ -1,0 +1,74 @@
+{
+  "datasetVersion": "9b-synthetic-v1",
+  "license": "Generated in-repo for technical benchmarking only. Not a clinical dataset.",
+  "containsRealFaces": false,
+  "containsImpairmentGroundTruth": false,
+  "disclaimer": "Samples are synthetic geometric images. They are not labeled intoxicated/sober. expectedStatus values are technical pipeline expectations only.",
+  "samples": [
+    {
+      "sampleId": "synth_clear_signal",
+      "file": "synth_clear_signal.jpg",
+      "source": "synthetic-generator",
+      "scenario": "technical_signal_present",
+      "imageQuality": "good",
+      "lighting": "mixed",
+      "cameraAngle": "frontal_synthetic",
+      "numberOfPeople": 0,
+      "glasses": false,
+      "notes": "Gradient + oval blob for presence signal; not a face.",
+      "expectedStatus": "ANALYSIS_UNAVAILABLE"
+    },
+    {
+      "sampleId": "synth_low_light",
+      "file": "synth_low_light.jpg",
+      "source": "synthetic-generator",
+      "scenario": "low_light",
+      "imageQuality": "poor",
+      "lighting": "dark",
+      "cameraAngle": "n/a",
+      "numberOfPeople": 0,
+      "glasses": false,
+      "notes": "Near-black frame for insufficient-quality gate.",
+      "expectedStatus": "INSUFFICIENT_QUALITY"
+    },
+    {
+      "sampleId": "synth_overexposed",
+      "file": "synth_overexposed.jpg",
+      "source": "synthetic-generator",
+      "scenario": "overexposed",
+      "imageQuality": "poor",
+      "lighting": "bright",
+      "cameraAngle": "n/a",
+      "numberOfPeople": 0,
+      "glasses": false,
+      "notes": "Near-white frame for insufficient-quality gate.",
+      "expectedStatus": "INSUFFICIENT_QUALITY"
+    },
+    {
+      "sampleId": "synth_flat_no_person",
+      "file": "synth_flat_no_person.jpg",
+      "source": "synthetic-generator",
+      "scenario": "uniform_empty",
+      "imageQuality": "medium",
+      "lighting": "flat",
+      "cameraAngle": "n/a",
+      "numberOfPeople": 0,
+      "glasses": false,
+      "notes": "Uniform mid-gray; treated as no-person technical case.",
+      "expectedStatus": "NO_PERSON_DETECTED"
+    },
+    {
+      "sampleId": "synth_high_contrast",
+      "file": "synth_high_contrast.jpg",
+      "source": "synthetic-generator",
+      "scenario": "high_contrast_pattern",
+      "imageQuality": "good",
+      "lighting": "high_contrast",
+      "cameraAngle": "n/a",
+      "numberOfPeople": 0,
+      "glasses": false,
+      "notes": "Checkerboard; technical readiness without impairment claim.",
+      "expectedStatus": "ANALYSIS_UNAVAILABLE"
+    }
+  ]
+}

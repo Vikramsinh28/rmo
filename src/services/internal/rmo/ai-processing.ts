@@ -5,6 +5,13 @@ import { RmoError } from '@/lib/rmo/errors';
 import { getDivisionAICapabilities } from '@/services/internal/rmo/ai-entitlement';
 import { Actor } from '@/services/internal/rmo/administration';
 import { AIProcessingStatus } from '@/lib/prisma/generated/client';
+import {
+  clearIdentitySession,
+  getSessionIdentityMetrics,
+  mergeIdentityIntoPersons,
+  scheduleIdentityResolution,
+  type TrackedPersonCandidate,
+} from '@/services/internal/rmo/identity-resolution';
 
 const OPEN_STATUSES: AIProcessingStatus[] = ['STARTING', 'RUNNING', 'STOPPING'];
 
@@ -118,8 +125,11 @@ async function syncFromAiService(jobId: number) {
       processingFps?: number;
       lastFrameAt?: string | null;
       status?: string;
+      personCount?: number;
+      persons?: unknown[];
+      tracking?: unknown;
     };
-    return prisma.aIProcessingJob.update({
+    const updated = await prisma.aIProcessingJob.update({
       where: { id: jobId },
       data: {
         framesReceived: body.framesReceived ?? undefined,
@@ -128,6 +138,12 @@ async function syncFromAiService(jobId: number) {
         lastFrameAt: body.lastFrameAt ? new Date(body.lastFrameAt) : undefined,
       },
     });
+    return {
+      job: updated,
+      persons: Array.isArray(body.persons) ? body.persons : [],
+      personCount: typeof body.personCount === 'number' ? body.personCount : 0,
+      tracking: body.tracking || null,
+    };
   } catch {
     return null;
   }
@@ -144,8 +160,20 @@ export async function getCallAIProcessingStatus(actor: Actor, callId: number) {
     orderBy: { id: 'desc' },
   });
   let current = job;
+  let persons: unknown[] = [];
+  let personCount = 0;
+  let tracking: unknown = null;
   if (job && job.status === 'RUNNING') {
-    current = (await syncFromAiService(job.id)) || job;
+    const synced = await syncFromAiService(job.id);
+    if (synced) {
+      current = synced.job;
+      persons = mergeIdentityIntoPersons(
+        callId,
+        (synced.persons as Array<Record<string, unknown>>) || [],
+      );
+      personCount = Array.isArray(persons) ? persons.length : synced.personCount;
+      tracking = synced.tracking;
+    }
   }
   return {
     callId: call.id,
@@ -158,6 +186,14 @@ export async function getCallAIProcessingStatus(actor: Actor, callId: number) {
       moduleNote: capabilities.moduleNote,
     },
     processing: current ? presentJob(current) : null,
+    // Phase 10/11 — temporary tracking IDs + quality-gated identity overlay.
+    people: {
+      count: personCount,
+      persons,
+      tracking,
+    },
+    identityResolution: getSessionIdentityMetrics(callId),
+    identityRequestCount: getSessionIdentityMetrics(callId).requestCount,
   };
 }
 
@@ -366,6 +402,7 @@ export async function stopCallAIProcessing(actor: Actor, callId: number) {
     where: { id: job.id },
     data: { status: 'STOPPED', stoppedAt: new Date() },
   });
+  clearIdentitySession(callId);
   await prisma.auditLog.create({
     data: {
       actorId: actor.id,
@@ -449,6 +486,8 @@ export async function ingestCallAIFrame(actor: Actor, callId: number, frame: Arr
     framesProcessed?: number;
     processingFps?: number;
     lastFrameAt?: string | null;
+    persons?: TrackedPersonCandidate[];
+    personCount?: number;
   };
   const updated = await prisma.aIProcessingJob.update({
     where: { id: job.id },
@@ -471,5 +510,15 @@ export async function ingestCallAIFrame(actor: Actor, callId: number, frame: Arr
       processingFps: updated.processingFps,
     });
   }
+
+  // Phase 11 — quality-gated identity (async; never blocks WebRTC / next frames).
+  scheduleIdentityResolution({
+    callId,
+    divisionId: call.divisionId,
+    actorId: actor.id,
+    frame: Buffer.from(frame),
+    persons: Array.isArray(body.persons) ? body.persons : [],
+  });
+
   return presentJob(updated);
 }

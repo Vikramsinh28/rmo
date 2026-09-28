@@ -150,8 +150,8 @@ export function FaceRecognizeControls({
           </p>
         </div>
       ) : (
-        <p className="mt-2 text-zinc-400">
-          Click once to identify faces in the current frame. AWS is not called automatically.
+        <p className="mt-2 text-[10px] text-zinc-500">
+          Manual one-shot AWS recognition. Automatic quality-gated identity is separate (~15s).
         </p>
       )}
     </aside>

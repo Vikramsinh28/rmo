@@ -21,6 +21,11 @@ def test_health_and_capabilities():
     body = caps.json()
     assert body['processing']['frameExtraction'] is True
     assert body['processing']['faceIdentification'] is False
+    assert body['processing']['personTracking'] is True
+    assert body['processing']['impairmentDetection'] is True
+    assert body['impairmentPoc']['pocOnly'] is True
+    assert body['impairmentPoc']['productionReady'] is False
+    assert body['tracking']['continuousRekognition'] is False
 
 
 def test_session_lifecycle_and_frame_counter():
