@@ -640,11 +640,9 @@ export function CallMedia({
               {status.startsWith('Connection lost') ? 'Reconnecting' : 'Live'}
             </span>
           </div>
-          <AICapabilityBadge
-            callId={callId}
-            canControl={role === 'monitor'}
-            autoStart={role === 'monitor'}
-          />
+          {role === 'monitor' ? (
+            <AICapabilityBadge callId={callId} canControl autoStart />
+          ) : null}
           {role === 'monitor' ? (
             <label className="flex items-center gap-2 rounded-full bg-black/50 px-3 py-1 text-xs">
               <input

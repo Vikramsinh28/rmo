@@ -106,6 +106,8 @@ def run_video(entry: Dict[str, Any], video_dir: Path, out_dir: Path, fps: float)
         frame_best = 'INSUFFICIENT_EVIDENCE'
         for person in persons:
             status = person['visualStatus']
+            if status not in RANK:
+                continue
             risk = person['impairment']
             track = person['trackId']
             person_samples += 1

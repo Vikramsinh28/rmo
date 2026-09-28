@@ -8,6 +8,8 @@ from app.tracking.models import BoundingBox, Keypoint
 
 # COCO-17 keypoint indices (YOLO pose / most pose models).
 NOSE = 0
+LEFT_EYE, RIGHT_EYE = 1, 2
+LEFT_EAR, RIGHT_EAR = 3, 4
 LEFT_SHOULDER, RIGHT_SHOULDER = 5, 6
 LEFT_ELBOW, RIGHT_ELBOW = 7, 8
 LEFT_WRIST, RIGHT_WRIST = 9, 10
@@ -104,6 +106,28 @@ class PoseFeatureExtractor:
                 # Tilt of the shoulder line from horizontal, degrees.
                 shoulder_alignment = math.degrees(math.atan2(dy, abs(dx)))
 
+        # Head from body keypoints: works when the face mesh cannot see the face.
+        head_tilt: Optional[float] = None
+        pair = (
+            (points[LEFT_EYE], points[RIGHT_EYE])
+            if points[LEFT_EYE] and points[RIGHT_EYE]
+            else (points[LEFT_EAR], points[RIGHT_EAR])
+        )
+        if pair[0] and pair[1]:
+            hx, hy = pair[0][0] - pair[1][0], pair[0][1] - pair[1][1]
+            if math.hypot(hx, hy) > 1e-4:
+                # Degrees from level: 0 = upright head, 90 = head on its side.
+                head_tilt = math.degrees(math.atan2(abs(hy), abs(hx)))
+        head_point = (
+            points[NOSE]
+            or _midpoint(points[LEFT_EYE], points[RIGHT_EYE])
+            or _midpoint(points[LEFT_EAR], points[RIGHT_EAR])
+        )
+        head_rise: Optional[float] = None
+        if head_point and shoulder_mid and shoulder_width and shoulder_width > 1e-4:
+            # Height of the head above the shoulder line, in shoulder widths.
+            head_rise = (shoulder_mid[1] - head_point[1]) / shoulder_width
+
         ankle_mid = _midpoint(points[LEFT_ANKLE], points[RIGHT_ANKLE])
         body_height: Optional[float] = None
         if shoulder_mid and ankle_mid:
@@ -149,6 +173,16 @@ class PoseFeatureExtractor:
                 if shoulder_mid else None
             ),
             'shoulderWidth': round(shoulder_width, 4) if shoulder_width else None,
+            # Box width / height in isotropic units; > 1 means wider than tall.
+            'boxAspect': (
+                round(person_box.width * aspect / person_box.height, 3)
+                if person_box.height > 1e-4 else None
+            ),
+            'headTilt': round(head_tilt, 2) if head_tilt is not None else None,
+            'headRise': round(head_rise, 3) if head_rise is not None else None,
+            'headPoint': (
+                {'x': round(head_point[0], 4), 'y': round(head_point[1], 4)} if head_point else None
+            ),
             'ankles': {
                 'left': (
                     {'x': round(points[LEFT_ANKLE][0], 4), 'y': round(points[LEFT_ANKLE][1], 4)}
@@ -187,6 +221,10 @@ class PoseFeatureExtractor:
             'hipCenter': None,
             'shoulderCenter': None,
             'shoulderWidth': None,
+            'boxAspect': None,
+            'headTilt': None,
+            'headRise': None,
+            'headPoint': None,
             'ankles': {'left': None, 'right': None},
             'bodyHeight': None,
             'bodyVisibility': round(min(1.0, person_box.height / 0.7), 3) if body_visible else 0.0,

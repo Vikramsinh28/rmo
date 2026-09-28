@@ -15,7 +15,7 @@ import {
 import {
   closeSafetyEpisodes,
   recordSafetyEpisodes,
-  stripImpairment,
+  stripUnentitled,
   type SafetyPersonCandidate,
 } from '@/services/internal/rmo/safety-events';
 
@@ -126,18 +126,22 @@ export interface LiveOverlayPerson {
   box: { x: number; y: number; width: number; height: number } | null;
   name: string | null;
   identityStatus: string | null;
+  /** 'subject' = the crew member being interviewed; 'other' = bystander, not assessed. */
+  role: 'subject' | 'other' | null;
   visualStatus: string | null;
+  drowsinessStatus: string | null;
+  notices: string[];
 }
 
 function numberOrNull(value: unknown) {
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
 }
 
-/** Minimal per-person view for drawing boxes over the live video (normalized 0–1 coords). */
-function buildLiveOverlay(
-  persons: Array<Record<string, unknown>>,
-  includeVisualStatus: boolean,
-): LiveOverlayPerson[] {
+/**
+ * Minimal per-person view for drawing boxes over the live video (normalized 0–1 coords).
+ * Expects persons already filtered by entitlement.
+ */
+function buildLiveOverlay(persons: Array<Record<string, unknown>>): LiveOverlayPerson[] {
   return persons.map(person => {
     const tracking = (person.tracking || {}) as Record<string, unknown>;
     const raw = (tracking.boundingBox || {}) as Record<string, unknown>;
@@ -147,6 +151,7 @@ function buildLiveOverlay(
     const height = numberOrNull(raw.height);
     const identity = (person.identity || {}) as Record<string, unknown>;
     const impairment = (person.impairment || {}) as Record<string, unknown>;
+    const drowsiness = (person.drowsiness || {}) as Record<string, unknown>;
     const visual = person.visualStatus ?? impairment.status;
     return {
       trackId: String(person.trackId ?? ''),
@@ -155,7 +160,12 @@ function buildLiveOverlay(
         : null,
       name: typeof identity.displayName === 'string' ? identity.displayName : null,
       identityStatus: typeof identity.status === 'string' ? identity.status : null,
-      visualStatus: includeVisualStatus && typeof visual === 'string' ? visual : null,
+      role: person.role === 'subject' || person.role === 'other' ? person.role : null,
+      visualStatus: typeof visual === 'string' ? visual : null,
+      drowsinessStatus: typeof drowsiness.status === 'string' ? drowsiness.status : null,
+      notices: Array.isArray(person.notices)
+        ? person.notices.filter((notice): notice is string => typeof notice === 'string')
+        : [],
     };
   });
 }
@@ -216,7 +226,7 @@ export async function getCallAIProcessingStatus(actor: Actor, callId: number) {
         callId,
         (synced.persons as Array<Record<string, unknown>>) || [],
       );
-      persons = capabilities.features.impairmentDetection ? merged : stripImpairment(merged);
+      persons = stripUnentitled(merged, capabilities.features);
       personCount = Array.isArray(persons) ? persons.length : synced.personCount;
       tracking = synced.tracking;
     }
@@ -595,23 +605,20 @@ export async function ingestCallAIFrame(actor: Actor, callId: number, frame: Arr
   const merged = Array.isArray(body.persons)
     ? mergeIdentityIntoPersons(callId, body.persons as unknown as Array<Record<string, unknown>>)
     : [];
-  if (capabilities.features.impairmentDetection && Array.isArray(body.persons)) {
+  const entitled = stripUnentitled(merged, capabilities.features);
+  const { impairmentDetection, fatigueDetection } = capabilities.features;
+  if ((impairmentDetection || fatigueDetection) && Array.isArray(body.persons)) {
     void recordSafetyEpisodes({
       jobId: job.id,
       callId,
       divisionId: call.divisionId,
       lobbyId: call.lobbyId,
-      persons: merged as SafetyPersonCandidate[],
+      persons: entitled as SafetyPersonCandidate[],
     });
   }
 
   return {
     ...presentJob(updated),
-    overlay: role === 'LOBBY_USER'
-      ? []
-      : buildLiveOverlay(
-          merged as Array<Record<string, unknown>>,
-          capabilities.features.impairmentDetection,
-        ),
+    overlay: role === 'LOBBY_USER' ? [] : buildLiveOverlay(entitled),
   };
 }

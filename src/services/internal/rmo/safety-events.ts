@@ -6,6 +6,7 @@ import { publishMonitoringEvent } from '@/lib/rmo/monitoring-events';
 import { Actor } from '@/services/internal/rmo/administration';
 import {
   Prisma,
+  type SafetyEventKind,
   type SafetyEventOutcome,
   type SafetyEventSeverity,
   type SafetyEventStatus,
@@ -13,6 +14,7 @@ import {
 
 /** Visual indicators only — never a diagnosis. A human must review every event. */
 const ALERT_STATUSES: readonly SafetyEventSeverity[] = ['ELEVATED_INDICATORS', 'HIGH_INDICATORS'];
+const KINDS: readonly SafetyEventKind[] = ['VISUAL_INDICATORS', 'DROWSINESS'];
 const STATUSES: readonly SafetyEventStatus[] = [
   'PENDING_REVIEW',
   'CONFIRMED',
@@ -41,12 +43,15 @@ interface EpisodePayload {
   features?: unknown;
 }
 
+interface EpisodeSource {
+  episode?: EpisodePayload | null;
+  modelVersion?: string;
+}
+
 export interface SafetyPersonCandidate {
   trackId?: unknown;
-  impairment?: {
-    episode?: EpisodePayload | null;
-    modelVersion?: string;
-  } | null;
+  impairment?: EpisodeSource | null;
+  drowsiness?: EpisodeSource | null;
   identity?: {
     status?: string;
     userId?: number | null;
@@ -91,6 +96,7 @@ function publishSafety(
     divisionId: number;
     lobbyId: number;
     lobbyCallId: number;
+    kind: string;
     severity: string;
     status: string;
     trackId: string;
@@ -105,6 +111,7 @@ function publishSafety(
     callId: event.lobbyCallId,
     safety: {
       eventId: event.id,
+      kind: event.kind,
       severity: event.severity,
       status: event.status,
       trackId: event.trackId,
@@ -138,13 +145,18 @@ async function persistEpisodes(input: RecordInput) {
   const cache = episodeCache.get(input.jobId) || new Map<string, CachedEpisode>();
   episodeCache.set(input.jobId, cache);
   const now = Date.now();
-  const seenTracks = new Set<string>();
-
+  const reported = new Set<string>();
+  const sources: Array<{ person: SafetyPersonCandidate; kind: SafetyEventKind; source: EpisodeSource }> = [];
   for (const person of input.persons) {
+    if (person.impairment) sources.push({ person, kind: 'VISUAL_INDICATORS', source: person.impairment });
+    if (person.drowsiness) sources.push({ person, kind: 'DROWSINESS', source: person.drowsiness });
+  }
+
+  for (const { person, kind, source } of sources) {
     const trackId = String(person.trackId || '');
-    if (trackId) seenTracks.add(trackId);
-    const episode = person.impairment?.episode;
+    const episode = source.episode;
     if (!trackId || !episode?.id || !isSeverity(episode.peakStatus)) continue;
+    reported.add(episode.id);
 
     const identity = person.identity?.status === 'RECOGNIZED' ? person.identity : null;
     const subjectUserId = identity?.userId ?? null;
@@ -206,7 +218,8 @@ async function persistEpisodes(input: RecordInput) {
           lobbyId: input.lobbyId,
           lobbyCallId: input.callId,
           trackId,
-          modelVersion: person.impairment?.modelVersion || 'unknown',
+          kind,
+          modelVersion: source.modelVersion || 'unknown',
           startedAt: toDate(episode.startedAt) || new Date(),
         },
         include: { lobby: { select: { name: true } } },
@@ -223,6 +236,7 @@ async function persistEpisodes(input: RecordInput) {
             divisionId: input.divisionId,
             lobbyId: input.lobbyId,
             aiJobId: input.jobId,
+            kind: created.kind,
             severity: created.severity,
             modelVersion: created.modelVersion,
           },
@@ -232,14 +246,16 @@ async function persistEpisodes(input: RecordInput) {
         safetyEventId: created.id,
         jobId: input.jobId,
         callId: input.callId,
+        kind: created.kind,
         severity: created.severity,
       });
     }
     cache.set(episode.id, { signature, trackId, open: !endedAt, lastSeenAt: now });
   }
 
+  // An episode no longer reported (person left, or stopped being the interview subject) ends.
   for (const [episodeKey, cached] of cache) {
-    if (!cached.open || seenTracks.has(cached.trackId)) continue;
+    if (!cached.open || reported.has(episodeKey)) continue;
     if (now - cached.lastSeenAt < MISSING_TRACK_GRACE_MS) continue;
     await prisma.safetyEvent.updateMany({
       where: { aiJobId: input.jobId, episodeKey, endedAt: null },
@@ -269,12 +285,19 @@ export async function closeSafetyEpisodes(jobId: number) {
   });
 }
 
-/** Remove impairment output when the division is not entitled to it. */
-export function stripImpairment<T extends Record<string, unknown>>(persons: T[]) {
+/** Remove AI outputs the division is not entitled to (impairment and/or fatigue detection). */
+export function stripUnentitled<T extends Record<string, unknown>>(
+  persons: T[],
+  features: { impairmentDetection: boolean; fatigueDetection: boolean },
+) {
+  if (features.impairmentDetection && features.fatigueDetection) return persons;
   return persons.map(person => {
     const rest = { ...person } as Record<string, unknown>;
-    delete rest.impairment;
-    delete rest.visualStatus;
+    if (!features.impairmentDetection) {
+      delete rest.impairment;
+      delete rest.visualStatus;
+    }
+    if (!features.fatigueDetection) delete rest.drowsiness;
     return rest as T;
   });
 }
@@ -303,6 +326,7 @@ function assertCanReview(actor: Actor, divisionId: number) {
 export interface SafetyEventListQuery {
   status?: string;
   severity?: string;
+  kind?: string;
   divisionId?: number;
   lobbyId?: number;
   callId?: number;
@@ -337,6 +361,7 @@ function presentEvent(event: ListedEvent) {
           confidence: event.identityConfidence,
         }
       : null,
+    kind: event.kind,
     severity: event.severity,
     peakScore: event.peakScore,
     confidence: event.confidence,
@@ -366,6 +391,7 @@ export async function listSafetyEvents(actor: Actor, query: SafetyEventListQuery
   const pageSize = Math.min(Math.max(query.pageSize || 20, 1), 50);
   const status = STATUSES.find(value => value === query.status);
   const severity = ALERT_STATUSES.find(value => value === query.severity);
+  const kind = KINDS.find(value => value === query.kind);
   const dateFrom = toDate(query.dateFrom);
   const dateTo = toDate(query.dateTo);
   const where: Prisma.SafetyEventWhereInput = {
@@ -373,6 +399,7 @@ export async function listSafetyEvents(actor: Actor, query: SafetyEventListQuery
       scope,
       status ? { status } : {},
       severity ? { severity } : {},
+      kind ? { kind } : {},
       query.divisionId ? { divisionId: query.divisionId } : {},
       query.lobbyId ? { lobbyId: query.lobbyId } : {},
       query.callId ? { lobbyCallId: query.callId } : {},

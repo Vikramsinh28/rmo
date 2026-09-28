@@ -14,6 +14,7 @@ interface SafetyStreamEvent {
   callId?: number;
   safety?: {
     eventId: number;
+    kind?: string;
     severity: string;
     status: string;
     trackId: string;
@@ -93,13 +94,18 @@ export function useSafetyAlerts() {
         return;
       }
 
-      const high = event.safety.severity === 'HIGH_INDICATORS';
+      const drowsy = event.safety.kind === 'DROWSINESS';
+      const high = !drowsy && event.safety.severity === 'HIGH_INDICATORS';
       const who = event.safety.subjectName || `Unidentified person (${event.safety.trackId})`;
       const where = event.safety.lobbyName || 'a lobby';
-      const title = high
-        ? 'High visual impairment indicators'
-        : 'Elevated visual impairment indicators';
-      const description = `${who} · ${where}. Visual indicators only — review required.`;
+      const title = drowsy
+        ? 'Possible drowsiness'
+        : high
+          ? 'High visual impairment indicators'
+          : 'Elevated visual impairment indicators';
+      const description = drowsy
+        ? `${who} · ${where}. Eyes closed or head slumped for a sustained period — review required.`
+        : `${who} · ${where}. Visual indicators only — review required.`;
       const eventId = event.safety.eventId;
       const callId = event.callId;
       const show = high ? toast.error : toast.warning;

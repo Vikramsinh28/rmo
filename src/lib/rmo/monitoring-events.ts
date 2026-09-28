@@ -1,5 +1,6 @@
 export interface SafetyAlertPayload {
   eventId: number;
+  kind: string;
   severity: string;
   status: string;
   trackId: string;
