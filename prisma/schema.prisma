@@ -107,6 +107,8 @@ model User {
   roomParticipants   RoomParticipant[]
   aiJobsStarted      AIProcessingJob[]   @relation("AIJobStarter")
   faceEnrollments    UserFaceEnrollment[]
+  safetyEventsSubject SafetyEvent[]    @relation("SafetyEventSubject")
+  safetyEventsReviewed SafetyEvent[]   @relation("SafetyEventReviewer")
 
   @@index([rmoRole])
   @@index([accountStatus])
@@ -354,6 +356,7 @@ model Division {
   lobbyCalls      LobbyCall[]
   aiEntitlement   DivisionAIEntitlement?
   aiJobs          AIProcessingJob[]
+  safetyEvents    SafetyEvent[]
   faceEnrollments UserFaceEnrollment[]
   faceCollection  DivisionFaceCollection?
 
@@ -381,6 +384,7 @@ model Lobby {
   lobbyCalls      LobbyCall[]
   recordingSegments RecordingSegment[]
   aiJobs          AIProcessingJob[]
+  safetyEvents    SafetyEvent[]
 
   @@unique([divisionId, code])
   @@index([divisionId])
@@ -696,6 +700,7 @@ model LobbyCall {
   participants RoomParticipant[]
   recordings   RecordingSegment[]
   aiJobs       AIProcessingJob[]
+  safetyEvents SafetyEvent[]
 
   @@index([roomId])
   @@index([lobbyId, status])
@@ -818,6 +823,7 @@ model AIProcessingJob {
   division  Division  @relation(fields: [divisionId], references: [id])
   lobby     Lobby     @relation(fields: [lobbyId], references: [id])
   startedBy User      @relation("AIJobStarter", fields: [startedById], references: [id])
+  safetyEvents SafetyEvent[]
 
   @@index([lobbyCallId, status])
   @@index([divisionId, status])
@@ -868,4 +874,70 @@ model UserFaceEnrollment {
   @@index([userId, status])
   @@index([divisionId, status])
   @@index([providerFaceId])
+}
+
+// Phase 13 — visual impairment indicator episodes for human review.
+// Product states, not medical or legal determinations.
+enum SafetyEventSeverity {
+  ELEVATED_INDICATORS
+  HIGH_INDICATORS
+}
+
+enum SafetyEventStatus {
+  PENDING_REVIEW
+  CONFIRMED
+  DISMISSED
+  INCONCLUSIVE
+}
+
+enum SafetyEventOutcome {
+  IMPAIRMENT_CONFIRMED
+  NOT_IMPAIRED
+  OTHER_CAUSE
+  INSUFFICIENT_VIDEO
+}
+
+model SafetyEvent {
+  id                  Int                 @id @default(autoincrement())
+  divisionId          Int
+  lobbyId             Int
+  lobbyCallId         Int
+  aiJobId             Int
+  episodeKey          String
+  trackId             String
+  subjectUserId       Int?
+  subjectName         String?
+  identityConfidence  Float?
+  severity            SafetyEventSeverity
+  peakScore           Float
+  confidence          Float
+  evidence            Json
+  signalGroups        Json
+  featureWindow       Json
+  modelVersion        String
+  status              SafetyEventStatus   @default(PENDING_REVIEW)
+  startedAt           DateTime
+  endedAt             DateTime?
+  reviewOutcome       SafetyEventOutcome?
+  reviewNote          String?
+  breathTestPerformed Boolean?
+  breathTestPositive  Boolean?
+  reviewedById        Int?
+  reviewedAt          DateTime?
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+
+  division   Division        @relation(fields: [divisionId], references: [id])
+  lobby      Lobby           @relation(fields: [lobbyId], references: [id])
+  call       LobbyCall       @relation(fields: [lobbyCallId], references: [id], onDelete: Cascade)
+  aiJob      AIProcessingJob @relation(fields: [aiJobId], references: [id], onDelete: Cascade)
+  subject    User?           @relation("SafetyEventSubject", fields: [subjectUserId], references: [id])
+  reviewedBy User?           @relation("SafetyEventReviewer", fields: [reviewedById], references: [id])
+
+  @@unique([aiJobId, episodeKey])
+  @@index([divisionId, status])
+  @@index([lobbyId])
+  @@index([lobbyCallId])
+  @@index([subjectUserId])
+  @@index([startedAt])
 }

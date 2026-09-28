@@ -1,10 +1,27 @@
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+import logging
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 
-from app.tracking.models import BoundingBox
+from app.tracking.models import BoundingBox, Keypoint
+
+logger = logging.getLogger('rmo-ai-service')
+
+
+def get_face_extractor(provider: Optional[str] = None):
+    from app.config import settings
+
+    name = (provider or settings.ai_face_provider or 'haar').strip().lower()
+    if name == 'mediapipe':
+        try:
+            from app.features.face_mesh import MeshFaceFeatureExtractor
+
+            return MeshFaceFeatureExtractor()
+        except Exception as error:  # noqa: BLE001 — missing mediapipe falls back to Haar
+            logger.warning('AI_FACE_MESH_UNAVAILABLE fallback=haar reason=%s', error)
+    return FaceFeatureExtractor()
 
 
 class FaceFeatureExtractor:
@@ -14,6 +31,11 @@ class FaceFeatureExtractor:
     Does NOT call AWS Rekognition. Unreliable values are returned as null.
     """
 
+    provider_name = 'haar'
+
+    def close(self) -> None:
+        return None
+
     def __init__(self) -> None:
         import cv2
 
@@ -21,7 +43,12 @@ class FaceFeatureExtractor:
         cascade_path = cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
         self._face = cv2.CascadeClassifier(cascade_path)
 
-    def extract(self, frame_bgr: np.ndarray, person_box: BoundingBox) -> Dict[str, Any]:
+    def extract(
+        self,
+        frame_bgr: np.ndarray,
+        person_box: BoundingBox,
+        keypoints: Optional[List[Keypoint]] = None,
+    ) -> Dict[str, Any]:
         height, width = frame_bgr.shape[:2]
         x1 = int(person_box.x * width)
         y1 = int(person_box.y * height)

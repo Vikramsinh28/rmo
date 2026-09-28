@@ -107,7 +107,9 @@ class SessionStore:
             session.stopped_at = utc_now()
             session.latest_tracking = None
             logger.info('AI_SESSION_STOPPED jobId=%s callId=%s', job_id, session.call_id)
-        drop_session_pipeline(job_id)
+        # Wait for any in-flight frame so models are not closed mid-inference.
+        with session._lock:
+            drop_session_pipeline(job_id)
         return session
 
     def get(self, job_id: int) -> Optional[SessionState]:

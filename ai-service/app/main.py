@@ -11,6 +11,7 @@ from app.impairment.factory import get_impairment_detector, impairment_capabilit
 from app.impairment.preprocess import validate_and_decode
 from app.impairment.types import utc_now_iso
 from app.sessions import store
+from app.temporal.risk import MODEL_VERSION
 
 logging.basicConfig(
     level=logging.INFO,
@@ -68,6 +69,12 @@ def capabilities() -> dict:
         'tracking': {
             'enabled': settings.ai_tracking_enabled,
             'provider': settings.ai_tracking_provider,
+            'tracker': settings.ai_tracker_provider,
+            'faceProvider': settings.ai_face_provider,
+            'poseModel': settings.ai_pose_model,
+            'frameIntervalMs': settings.ai_frame_interval_ms,
+            'visualIndicatorEngine': MODEL_VERSION if settings.ai_risk_enabled else None,
+            'riskWindowSeconds': settings.ai_risk_window_seconds,
             'windowSeconds': settings.ai_tracking_window_seconds,
             'continuousRekognition': False,
             'impairmentClassifier': False,

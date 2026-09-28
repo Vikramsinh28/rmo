@@ -96,5 +96,6 @@ class RollingPersonStateStore:
         cutoff = now - self.window
         person.history = [item for item in person.history if item.timestamp >= cutoff]
         # Hard cap to avoid unbounded growth if timestamps cluster.
-        if len(person.history) > 120:
-            person.history = person.history[-120:]
+        cap = settings.ai_tracking_max_history
+        if len(person.history) > cap:
+            person.history = person.history[-cap:]

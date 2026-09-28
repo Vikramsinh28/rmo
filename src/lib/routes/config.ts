@@ -38,6 +38,8 @@ const FORM_USE = [...FORM_READ, LOBBY_USER, CREW_USER] as const;
 const FORM_SUBMIT = [LOBBY_USER, CREW_USER] as const;
 const ENROLLMENT_READ = [SYSTEM_ADMIN, DIVISION_ADMIN] as const;
 const ENROLLMENT_DECIDE = [DIVISION_ADMIN] as const;
+const SAFETY_READ = [SYSTEM_ADMIN, SUPER_ADMIN, DIVISION_ADMIN, DIVISION_MONITOR] as const;
+const SAFETY_REVIEW = [SYSTEM_ADMIN, DIVISION_ADMIN, DIVISION_MONITOR] as const;
 
 export const ALL_ROUTES: RouteConfig[] = [
   { path: '/', isPublic: true },
@@ -99,7 +101,7 @@ export const ALL_ROUTES: RouteConfig[] = [
   { path: '/analytics', isPublic: false, accessTo: { GET: [...FORM_ADMIN] } },
   { path: '/enrollments', isPublic: false, accessTo: { GET: [...ENROLLMENT_READ] } },
   { path: '/enrollments/[id]', isPublic: false, accessTo: { GET: [...ENROLLMENT_READ] } },
-  { path: '/safety-events', isPublic: false, accessTo: { GET: [...ORG_ADMIN] } },
+  { path: '/safety-events', isPublic: false, accessTo: { GET: [...SAFETY_READ] } },
   { path: '/settings', isPublic: false, accessTo: { GET: [...SIGNED_IN] } },
 
   {
@@ -330,6 +332,21 @@ export const ALL_ROUTES: RouteConfig[] = [
   },
 
   {
+    path: '/api/safety-events/[id]/review',
+    isPublic: false,
+    accessTo: { POST: [...SAFETY_REVIEW] },
+  },
+  {
+    path: '/api/safety-events/[id]',
+    isPublic: false,
+    accessTo: { GET: [...SAFETY_READ] },
+  },
+  {
+    path: '/api/safety-events',
+    isPublic: false,
+    accessTo: { GET: [...SAFETY_READ] },
+  },
+  {
     path: '/api/monitoring/ai',
     isPublic: false,
     accessTo: { GET: [DIVISION_ADMIN, DIVISION_MONITOR, LOBBY_USER] },
@@ -337,7 +354,7 @@ export const ALL_ROUTES: RouteConfig[] = [
   {
     path: '/api/monitoring/events',
     isPublic: false,
-    accessTo: { GET: [...DIVISION_READ, LOBBY_USER, CREW_USER] },
+    accessTo: { GET: [...DIVISION_READ, SUPER_ADMIN, LOBBY_USER, CREW_USER] },
   },
   {
     path: '/api/monitoring/ice',

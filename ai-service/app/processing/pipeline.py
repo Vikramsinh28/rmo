@@ -6,14 +6,16 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 
 from app.config import settings
-from app.features.face_features import FaceFeatureExtractor
+from app.features.face_features import get_face_extractor
 from app.features.movement_features import MovementFeatureExtractor
 from app.features.pose_features import PoseFeatureExtractor
 from app.features.quality import QualityEngine
 from app.identity.resolver import IdentityResolver, UnknownIdentityResolver
+from app.temporal.features import TemporalFeatureExtractor
+from app.temporal.risk import INSUFFICIENT, MODEL_VERSION, RiskEngine
 from app.tracking.detector import PersonDetector, get_person_detector
 from app.tracking.state import RollingPersonStateStore
-from app.tracking.tracker import IoUPersonTracker, PersonTracker
+from app.tracking.tracker import PersonTracker, get_person_tracker
 
 
 def _utc_now() -> datetime:
@@ -33,19 +35,44 @@ class FrameProcessingPipeline:
         tracker: Optional[PersonTracker] = None,
         state: Optional[RollingPersonStateStore] = None,
         identity_resolver: Optional[IdentityResolver] = None,
+        face_extractor=None,
     ) -> None:
         self.detector = detector or get_person_detector()
-        self.tracker = tracker or IoUPersonTracker()
+        self.tracker = tracker or get_person_tracker()
         self.state = state or RollingPersonStateStore()
         self.identity = identity_resolver or UnknownIdentityResolver()
-        self.face = FaceFeatureExtractor()
+        self.face = face_extractor or get_face_extractor()
         self.pose = PoseFeatureExtractor()
         self.movement = MovementFeatureExtractor()
         self.quality = QualityEngine()
+        self.temporal = TemporalFeatureExtractor(window_seconds=settings.ai_risk_window_seconds)
+        self.risk = RiskEngine()
+        self._risk_cache: Dict[str, Dict[str, Any]] = {}
+        self._risk_evaluated_at: Dict[str, datetime] = {}
 
     def reset(self) -> None:
         self.tracker.reset()
         self.state.reset()
+        self.risk.reset()
+        self._risk_cache.clear()
+        self._risk_evaluated_at.clear()
+
+    def _assess_risk(self, track_id: str, history: list, now: datetime) -> Dict[str, Any]:
+        if not settings.ai_risk_enabled:
+            return {'status': INSUFFICIENT, 'confidence': None, 'modelVersion': MODEL_VERSION}
+        last = self._risk_evaluated_at.get(track_id)
+        interval = settings.ai_risk_eval_interval_ms / 1000.0
+        if last is None or (now - last).total_seconds() >= interval:
+            features = self.temporal.compute(history)
+            result = self.risk.update(track_id, features, now)
+            result['features'] = features
+            self._risk_cache[track_id] = result
+            self._risk_evaluated_at[track_id] = now
+        return self._risk_cache[track_id]
+
+    def close(self) -> None:
+        self.reset()
+        self.face.close()
 
     def process(
         self,
@@ -61,23 +88,28 @@ class FrameProcessingPipeline:
         tracked = self.tracker.update(detections, now)
         active_ids = [item.track_id for item in tracked]
         # Keep state for temporarily lost tracks until tracker drops them.
-        tracker_ids = active_ids + [
-            t.track_id for t in getattr(self.tracker, '_tracks', {}).values()
-            if t.track_id not in active_ids
-        ]
-        self.state.drop_missing(list({*tracker_ids}))
+        retained = list({*active_ids, *self.tracker.known_track_ids()})
+        self.state.drop_missing(retained)
+        self.risk.drop_missing(retained)
+        for track_id in list(self._risk_cache):
+            if track_id not in retained:
+                self._risk_cache.pop(track_id, None)
+                self._risk_evaluated_at.pop(track_id, None)
 
         persons: List[dict] = []
+        frame_stats = self.quality.frame_stats(frame_bgr) if tracked else None
+        aspect = frame_bgr.shape[1] / frame_bgr.shape[0] if frame_bgr.shape[0] else 1.0
         for person in tracked:
             existing = self.state.get(person.track_id)
             history = existing.history if existing else []
-            face = self.face.extract(frame_bgr, person.bounding_box)
-            pose = self.pose.extract(person.bounding_box)
+            face = self.face.extract(frame_bgr, person.bounding_box, person.keypoints)
+            pose = self.pose.extract(person.bounding_box, person.keypoints, aspect=aspect)
             movement = self.movement.extract(
                 history,
                 person.bounding_box,
                 lower_body_visible=bool(pose.get('lowerBodyVisible')),
                 gait_available=bool(pose.get('gaitAvailable')),
+                current_pose=pose,
             )
             quality = self.quality.assess(
                 frame_bgr,
@@ -86,6 +118,7 @@ class FrameProcessingPipeline:
                 body_visible=bool(pose.get('visible')),
                 lower_body_visible=bool(pose.get('lowerBodyVisible')),
                 face_quality=face.get('quality'),
+                frame_stats=frame_stats,
             )
             identity = self.identity.resolve(person, frame_bgr, existing).to_dict()
             rollup = self.state.upsert(
@@ -97,6 +130,7 @@ class FrameProcessingPipeline:
                 identity=identity,
                 timestamp=now,
             )
+            risk = self._assess_risk(person.track_id, rollup.history, now)
             # Quality suppresses displayed identity confidence (still null in Phase 10).
             identity_confidence = rollup.identity_confidence
             if identity_confidence is not None and quality.get('score', 1) < 0.4:
@@ -130,6 +164,11 @@ class FrameProcessingPipeline:
                     'lowerBodyVisible': pose.get('lowerBodyVisible'),
                     'gaitAvailable': pose.get('gaitAvailable'),
                     'bodyVisibility': pose.get('bodyVisibility'),
+                    'keypointCoverage': pose.get('keypointCoverage'),
+                    'torsoAngle': pose.get('torsoAngle'),
+                    'shoulderAlignment': pose.get('shoulderAlignment'),
+                    'keypoints': pose.get('keypoints'),
+                    'source': pose.get('source'),
                     'signalsAvailable': pose.get('signalsAvailable', []),
                 },
                 'movement': movement,
@@ -139,12 +178,9 @@ class FrameProcessingPipeline:
                     'bodyVisible': quality.get('bodyVisible'),
                     'lowerBodyVisible': quality.get('lowerBodyVisible'),
                 },
-                'impairment': {
-                    # Phase 10: no classifier. Identity and impairment stay separate.
-                    'status': 'INSUFFICIENT_EVIDENCE',
-                    'confidence': None,
-                },
-                'visualStatus': 'INSUFFICIENT_EVIDENCE',
+                # Visual-indicator status stays separate from identity confidence.
+                'impairment': risk,
+                'visualStatus': risk['status'],
                 'historyLength': len(rollup.history),
             })
 
@@ -152,13 +188,17 @@ class FrameProcessingPipeline:
             'sessionId': str(session_id),
             'timestamp': now.isoformat(),
             'detector': self.detector.provider_name,
+            'tracker': getattr(self.tracker, 'provider_name', 'unknown'),
+            'faceProvider': getattr(self.face, 'provider_name', 'unknown'),
             'personCount': len(persons),
             'persons': persons,
             'trackingWindowSeconds': settings.ai_tracking_window_seconds,
             'awsCalls': 0,
+            'riskModelVersion': MODEL_VERSION,
             'limitations': {
                 'noContinuousRekognition': True,
                 'noImpairmentClassifier': True,
+                'ruleBasedVisualIndicators': True,
                 'identityDefaultUnknown': True,
                 'doesNotConfirmAlcoholConsumption': True,
             },
@@ -180,4 +220,4 @@ def get_session_pipeline(job_id: int) -> FrameProcessingPipeline:
 def drop_session_pipeline(job_id: int) -> None:
     pipeline = _pipelines.pop(job_id, None)
     if pipeline:
-        pipeline.reset()
+        pipeline.close()

@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import logging
 from abc import ABC, abstractmethod
 from typing import List
 
 import numpy as np
 
 from app.tracking.models import BoundingBox, Detection
+
+logger = logging.getLogger('rmo-ai-service')
 
 
 class PersonDetector(ABC):
@@ -149,4 +152,11 @@ def get_person_detector(provider: str | None = None) -> PersonDetector:
     name = (provider or settings.ai_tracking_provider or 'hog').strip().lower()
     if name == 'mock':
         return MockPersonDetector()
+    if name in {'yolo', 'yolo-pose'}:
+        try:
+            from app.tracking.yolo_detector import YoloPosePersonDetector
+
+            return YoloPosePersonDetector()
+        except Exception as error:  # noqa: BLE001 — missing deps / weights fall back to HOG
+            logger.warning('AI_POSE_MODEL_UNAVAILABLE fallback=hog reason=%s', error)
     return HogPersonDetector()

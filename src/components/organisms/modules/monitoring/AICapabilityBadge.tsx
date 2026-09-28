@@ -2,7 +2,7 @@
 
 import { Button } from '@/components/ui/button';
 import { useAuthStore } from '@/store/auth';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { apiRequest } from '../administration/api';
 import { PeopleTrackingPanel } from './PeopleTrackingPanel';
@@ -59,12 +59,17 @@ const LABELS = [
   { key: 'behaviorMonitoring', label: 'Behavior Monitoring' },
 ] as const;
 
+const AUTO_START_ENABLED = process.env.NEXT_PUBLIC_AI_AUTO_START !== 'false';
+
 export function AICapabilityBadge({
   callId,
   canControl = false,
+  autoStart = false,
 }: {
   callId?: number | null;
   canControl?: boolean;
+  /** Start AI once when the call opens and no job has ever run for it. */
+  autoStart?: boolean;
 }) {
   const role = useAuthStore(state => state.user?.rmoRole);
   const [ai, setAi] = useState<AICapabilities | null>(null);
@@ -72,6 +77,12 @@ export function AICapabilityBadge({
   const [people, setPeople] = useState<TrackedPersonView[]>([]);
   const [identity, setIdentity] = useState<IdentityResolutionSummary | null>(null);
   const [busy, setBusy] = useState(false);
+  const [callState, setCallState] = useState<{
+    callId: number;
+    connected: boolean;
+    everStarted: boolean;
+  } | null>(null);
+  const autoStarted = useRef<number | null>(null);
   const allowControl = canControl && (role === 'DIVISION_MONITOR' || role === 'SYSTEM_ADMIN');
 
   const load = useCallback(async () => {
@@ -84,6 +95,8 @@ export function AICapabilityBadge({
             moduleNote: string;
             features: AICapabilities['features'];
           };
+          callStatus?: string;
+          everStarted?: boolean;
           processing: ProcessingJob | null;
           people?: { persons?: TrackedPersonView[]; count?: number };
           identityResolution?: IdentityResolutionSummary;
@@ -98,6 +111,11 @@ export function AICapabilityBadge({
         setJob(page.processing);
         setPeople(Array.isArray(page.people?.persons) ? page.people.persons : []);
         setIdentity(page.identityResolution || null);
+        setCallState({
+          callId,
+          connected: page.callStatus === 'CONNECTED',
+          everStarted: page.everStarted ?? page.processing !== null,
+        });
         return;
       }
       const mine = await apiRequest<AICapabilities>('/api/monitoring/ai');
@@ -127,19 +145,40 @@ export function AICapabilityBadge({
     return () => window.clearInterval(timer);
   }, [callId, job?.status, load]);
 
-  async function start() {
+  const start = useCallback(async (automatic = false) => {
     if (!callId) return;
     setBusy(true);
     try {
       await apiRequest(`/api/monitoring/calls/${callId}/ai/start`, { method: 'POST' });
-      toast.success('AI processing started. The live call continues.');
+      toast.success(
+        automatic
+          ? 'AI monitoring started automatically for this call.'
+          : 'AI processing started. The live call continues.',
+      );
       await load();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Could not start AI processing.');
     } finally {
       setBusy(false);
     }
-  }
+  }, [callId, load]);
+
+  const wantsAutoStart = AUTO_START_ENABLED && autoStart && allowControl && !!callId
+    && callState?.callId === callId && !!ai?.available && !callState.everStarted
+    && autoStarted.current !== callId;
+  const waitingForConnection = wantsAutoStart && !callState?.connected;
+
+  useEffect(() => {
+    if (!wantsAutoStart || waitingForConnection || !callId) return;
+    autoStarted.current = callId;
+    void start(true);
+  }, [wantsAutoStart, waitingForConnection, callId, start]);
+
+  useEffect(() => {
+    if (!waitingForConnection) return undefined;
+    const timer = window.setInterval(() => void load(), 3000);
+    return () => window.clearInterval(timer);
+  }, [waitingForConnection, load]);
 
   async function stop() {
     if (!callId) return;

@@ -9,12 +9,14 @@ import {
   SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
+  SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
 } from '@/components/ui/sidebar';
 import { NAVIGATION_ITEMS } from '@/lib/constants/sidebar-navigation';
 import { useAuthStore } from '@/store/auth';
+import { useSafetyAlertStore } from '@/store/safety-alerts';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { UserProfileDropdown } from './UserProfileDropdown';
@@ -23,6 +25,7 @@ export function Sidebar() {
   const pathname = usePathname();
   const user = useAuthStore(state => state.user);
   const userRole = user?.rmoRole || user?.role;
+  const pendingSafety = useSafetyAlertStore(state => state.pending);
 
   const isActive = (itemUrl: string) => {
     if (itemUrl === siteConfig.baseLinks.overview) {
@@ -66,6 +69,14 @@ export function Sidebar() {
                         <span>{item.title}</span>
                       </Link>
                     </SidebarMenuButton>
+                    {item.url === siteConfig.baseLinks.safetyEvents && pendingSafety ? (
+                      <SidebarMenuBadge
+                        className="bg-red-600 text-white"
+                        aria-label={`${pendingSafety} safety events pending review`}
+                      >
+                        {pendingSafety > 99 ? '99+' : pendingSafety}
+                      </SidebarMenuBadge>
+                    ) : null}
                   </SidebarMenuItem>
                 ))}
               </SidebarMenu>

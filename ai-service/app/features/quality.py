@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict
+from typing import Any, Dict, Optional, Tuple
 
 import numpy as np
 
@@ -10,6 +10,16 @@ from app.tracking.models import BoundingBox
 class QualityEngine:
     """Frame / person quality signals. Poor quality must suppress downstream confidence."""
 
+    @staticmethod
+    def frame_stats(frame_bgr: np.ndarray) -> Tuple[float, float]:
+        """Whole-frame (brightness, normalized sharpness); compute once per frame."""
+        import cv2
+
+        gray = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2GRAY)
+        brightness = float(np.mean(gray) / 255.0)
+        sharpness = float(cv2.Laplacian(gray, cv2.CV_64F).var())
+        return brightness, max(0.0, min(1.0, sharpness / 250.0))
+
     def assess(
         self,
         frame_bgr: np.ndarray,
@@ -18,13 +28,9 @@ class QualityEngine:
         body_visible: bool,
         lower_body_visible: bool,
         face_quality: float | None,
+        frame_stats: Optional[Tuple[float, float]] = None,
     ) -> Dict[str, Any]:
-        import cv2
-
-        gray = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2GRAY)
-        brightness = float(np.mean(gray) / 255.0)
-        sharpness = float(cv2.Laplacian(gray, cv2.CV_64F).var())
-        sharpness_n = max(0.0, min(1.0, sharpness / 250.0))
+        brightness, sharpness_n = frame_stats or self.frame_stats(frame_bgr)
         box_area = person_box.width * person_box.height
         size_score = max(0.0, min(1.0, box_area / 0.15))
         occlusion = 0.0

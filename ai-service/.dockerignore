@@ -1,0 +1,7 @@
+.venv
+models
+**/__pycache__
+.pytest_cache
+Ultralytics
+evaluation/results/*
+!evaluation/results/README.md

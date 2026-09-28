@@ -46,11 +46,28 @@ class BoundingBox:
 
 
 @dataclass
+class Keypoint:
+    """COCO-17 body keypoint, normalized to the full frame."""
+
+    x: float
+    y: float
+    confidence: float
+
+    def to_dict(self) -> Dict[str, float]:
+        return {
+            'x': round(self.x, 4),
+            'y': round(self.y, 4),
+            'confidence': round(self.confidence, 3),
+        }
+
+
+@dataclass
 class Detection:
     tracking_candidate_id: str
     bounding_box: BoundingBox
     confidence: float
     class_name: str = 'person'
+    keypoints: Optional[List[Keypoint]] = None
 
 
 @dataclass
@@ -62,6 +79,7 @@ class TrackedPerson:
     last_seen_at: datetime
     age_frames: int
     lost_frames: int
+    keypoints: Optional[List[Keypoint]] = None
 
 
 @dataclass

@@ -12,6 +12,12 @@ import {
   scheduleIdentityResolution,
   type TrackedPersonCandidate,
 } from '@/services/internal/rmo/identity-resolution';
+import {
+  closeSafetyEpisodes,
+  recordSafetyEpisodes,
+  stripImpairment,
+  type SafetyPersonCandidate,
+} from '@/services/internal/rmo/safety-events';
 
 const OPEN_STATUSES: AIProcessingStatus[] = ['STARTING', 'RUNNING', 'STOPPING'];
 
@@ -115,6 +121,45 @@ function presentJob(job: {
   };
 }
 
+export interface LiveOverlayPerson {
+  trackId: string;
+  box: { x: number; y: number; width: number; height: number } | null;
+  name: string | null;
+  identityStatus: string | null;
+  visualStatus: string | null;
+}
+
+function numberOrNull(value: unknown) {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+/** Minimal per-person view for drawing boxes over the live video (normalized 0–1 coords). */
+function buildLiveOverlay(
+  persons: Array<Record<string, unknown>>,
+  includeVisualStatus: boolean,
+): LiveOverlayPerson[] {
+  return persons.map(person => {
+    const tracking = (person.tracking || {}) as Record<string, unknown>;
+    const raw = (tracking.boundingBox || {}) as Record<string, unknown>;
+    const x = numberOrNull(raw.x);
+    const y = numberOrNull(raw.y);
+    const width = numberOrNull(raw.width);
+    const height = numberOrNull(raw.height);
+    const identity = (person.identity || {}) as Record<string, unknown>;
+    const impairment = (person.impairment || {}) as Record<string, unknown>;
+    const visual = person.visualStatus ?? impairment.status;
+    return {
+      trackId: String(person.trackId ?? ''),
+      box: x != null && y != null && width != null && height != null
+        ? { x, y, width, height }
+        : null,
+      name: typeof identity.displayName === 'string' ? identity.displayName : null,
+      identityStatus: typeof identity.status === 'string' ? identity.status : null,
+      visualStatus: includeVisualStatus && typeof visual === 'string' ? visual : null,
+    };
+  });
+}
+
 async function syncFromAiService(jobId: number) {
   try {
     const response = await aiFetch(`/sessions/${jobId}/status`);
@@ -167,18 +212,23 @@ export async function getCallAIProcessingStatus(actor: Actor, callId: number) {
     const synced = await syncFromAiService(job.id);
     if (synced) {
       current = synced.job;
-      persons = mergeIdentityIntoPersons(
+      const merged = mergeIdentityIntoPersons(
         callId,
         (synced.persons as Array<Record<string, unknown>>) || [],
       );
+      persons = capabilities.features.impairmentDetection ? merged : stripImpairment(merged);
       personCount = Array.isArray(persons) ? persons.length : synced.personCount;
       tracking = synced.tracking;
     }
   }
+  const everStarted = current
+    ? true
+    : (await prisma.aIProcessingJob.count({ where: { lobbyCallId: callId } })) > 0;
   return {
     callId: call.id,
     callStatus: call.status,
     divisionId: call.divisionId,
+    everStarted,
     ai: {
       enabled: capabilities.available,
       reason: capabilities.reason,
@@ -403,6 +453,7 @@ export async function stopCallAIProcessing(actor: Actor, callId: number) {
     data: { status: 'STOPPED', stoppedAt: new Date() },
   });
   clearIdentitySession(callId);
+  await closeSafetyEpisodes(job.id);
   await prisma.auditLog.create({
     data: {
       actorId: actor.id,
@@ -520,5 +571,26 @@ export async function ingestCallAIFrame(actor: Actor, callId: number, frame: Arr
     persons: Array.isArray(body.persons) ? body.persons : [],
   });
 
-  return presentJob(updated);
+  const merged = Array.isArray(body.persons)
+    ? mergeIdentityIntoPersons(callId, body.persons as unknown as Array<Record<string, unknown>>)
+    : [];
+  if (capabilities.features.impairmentDetection && Array.isArray(body.persons)) {
+    void recordSafetyEpisodes({
+      jobId: job.id,
+      callId,
+      divisionId: call.divisionId,
+      lobbyId: call.lobbyId,
+      persons: merged as SafetyPersonCandidate[],
+    });
+  }
+
+  return {
+    ...presentJob(updated),
+    overlay: role === 'LOBBY_USER'
+      ? []
+      : buildLiveOverlay(
+          merged as Array<Record<string, unknown>>,
+          capabilities.features.impairmentDetection,
+        ),
+  };
 }

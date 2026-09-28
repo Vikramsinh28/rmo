@@ -1,0 +1,9 @@
+# Phase 12 — pose detection, ByteTrack tracking and face-mesh signals.
+# Installed on top of requirements.txt. The service falls back to HOG / IoU / Haar
+# when these packages or model files are unavailable, so unit tests do not require them.
+ultralytics==8.3.253
+supervision==0.26.1
+# 1.0.x aborts on macOS (Metal helper initialised even with the CPU delegate);
+# 0.10.3x has no Linux aarch64 wheels.
+mediapipe==0.10.32; sys_platform == 'darwin'
+mediapipe==1.0.1; sys_platform != 'darwin'

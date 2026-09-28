@@ -15,6 +15,47 @@ class MovementFeatureExtractor:
         current_box: BoundingBox,
         lower_body_visible: bool,
         gait_available: bool,
+        current_pose: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        result = self._from_boxes(history, current_box, lower_body_visible, gait_available)
+        sway = self._hip_sway(history, current_pose)
+        if sway is not None:
+            result['lateralSway'] = sway
+            result['signalsAvailable'] = [*result.get('signalsAvailable', []), 'lateralSway']
+        else:
+            result['lateralSway'] = None
+        return result
+
+    @staticmethod
+    def _hip_sway(
+        history: List[FeatureSnapshot],
+        current_pose: Optional[Dict[str, Any]],
+    ) -> Optional[float]:
+        """Std-dev of hip-center x over recent frames, in units of body height."""
+        poses = [snap.body for snap in history[-30:]]
+        if current_pose:
+            poses.append(current_pose)
+        samples = [
+            (pose['hipCenter']['x'], pose['bodyHeight'])
+            for pose in poses
+            if pose and pose.get('hipCenter') and pose.get('bodyHeight')
+        ]
+        if len(samples) < 5:
+            return None
+        xs = [x for x, _ in samples]
+        scale = sum(h for _, h in samples) / len(samples)
+        if scale <= 1e-4:
+            return None
+        mean_x = sum(xs) / len(xs)
+        std_x = math.sqrt(sum((x - mean_x) ** 2 for x in xs) / len(xs))
+        return round(std_x / scale, 4)
+
+    def _from_boxes(
+        self,
+        history: List[FeatureSnapshot],
+        current_box: BoundingBox,
+        lower_body_visible: bool,
+        gait_available: bool,
     ) -> Dict[str, Any]:
         centers = [snap.bounding_box.center() for snap in history[-30:]]
         centers.append(current_box.center())
@@ -64,7 +105,8 @@ class MovementFeatureExtractor:
         }
 
         # PDF: do not use gait when lower body unavailable / keypoints missing.
-        if not lower_body_visible or not gait_available:
+        result['gaitAvailable'] = bool(lower_body_visible and gait_available)
+        if not result['gaitAvailable']:
             result['gaitAvailable'] = False
             result['stepTiming'] = None
             result['strideConsistency'] = None

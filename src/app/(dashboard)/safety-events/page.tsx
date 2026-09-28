@@ -1,10 +1,12 @@
-import { ModulePlaceholder } from '@/components/organisms/shared/ModulePlaceholder';
+'use client';
+
+import { SafetyEventsScreen } from '@/components/organisms/modules/monitoring/SafetyEventsScreen';
+import { Suspense } from 'react';
 
 export default function SafetyEventsPage() {
   return (
-    <ModulePlaceholder
-      title="Safety events"
-      description="Safety events are not part of this phase."
-    />
+    <Suspense fallback={null}>
+      <SafetyEventsScreen />
+    </Suspense>
   );
 }

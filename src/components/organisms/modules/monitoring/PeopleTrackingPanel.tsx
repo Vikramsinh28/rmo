@@ -13,8 +13,43 @@ interface TrackedPersonView {
   tracking?: { confidence?: number };
   quality?: { score?: number | null };
   visualStatus?: string;
-  impairment?: { status?: string; confidence?: number | null };
-  face?: { visible?: boolean };
+  impairment?: {
+    status?: string;
+    confidence?: number | null;
+    evidence?: string[];
+    limitations?: string[];
+  };
+  face?: {
+    visible?: boolean;
+    headPose?: { pitch?: number | null; yaw?: number | null; roll?: number | null };
+    eyes?: { openProbability?: number | null };
+  };
+  body?: {
+    torsoAngle?: number | null;
+    lowerBodyVisible?: boolean;
+    gaitAvailable?: boolean;
+  };
+  movement?: { lateralSway?: number | null };
+}
+
+function degrees(value: number | null | undefined) {
+  return value == null ? '—' : `${Math.round(value)}°`;
+}
+
+function SignalRow({ person }: { person: TrackedPersonView }) {
+  const pose = person.face?.headPose;
+  const eyes = person.face?.eyes?.openProbability;
+  const sway = person.movement?.lateralSway;
+  const signals = [
+    `Torso ${degrees(person.body?.torsoAngle)}`,
+    pose?.yaw != null
+      ? `Head ${degrees(pose.pitch)}/${degrees(pose.yaw)}/${degrees(pose.roll)}`
+      : 'Head —',
+    `Eyes ${eyes == null ? '—' : `${Math.round(eyes * 100)}%`}`,
+    `Sway ${sway == null ? '—' : sway.toFixed(3)}`,
+    person.body?.gaitAvailable ? 'Gait visible' : 'No gait',
+  ];
+  return <p className="text-[10px] text-zinc-500">{signals.join(' · ')}</p>;
 }
 
 function qualityLabel(score: number | null | undefined) {
@@ -38,6 +73,39 @@ function visualLabel(status: string | undefined) {
     default:
       return 'Insufficient Evidence';
   }
+}
+
+function visualClass(status: string | undefined) {
+  switch (status) {
+    case 'HIGH_INDICATORS':
+      return 'font-medium text-red-300';
+    case 'ELEVATED_INDICATORS':
+      return 'font-medium text-amber-300';
+    case 'MONITORING':
+      return 'text-yellow-200';
+    case 'NORMAL':
+      return 'text-emerald-300';
+    default:
+      return 'text-zinc-400';
+  }
+}
+
+function VisualStatus({ person }: { person: TrackedPersonView }) {
+  const impairment = person.impairment;
+  const status = person.visualStatus || impairment?.status;
+  if (!impairment && !status) return null;
+  const details = impairment?.evidence?.length ? impairment.evidence : impairment?.limitations;
+  return (
+    <>
+      <p className={visualClass(status)}>
+        Visual status: {visualLabel(status)}
+        {impairment?.confidence != null ? ` · ${formatConfidence(impairment.confidence)}` : ''}
+      </p>
+      {details?.length ? (
+        <p className="text-[10px] text-zinc-500">{details.slice(0, 2).join(' · ')}</p>
+      ) : null}
+    </>
+  );
 }
 
 function formatConfidence(confidence: number | null | undefined) {
@@ -138,12 +206,11 @@ export function PeopleTrackingPanel({
                 <p className="text-zinc-400">
                   Last checked: {checkedAgo(person.identity?.lastCheckedAt)}
                 </p>
-                <p className="text-zinc-400">
-                  Visual status: {visualLabel(person.visualStatus || person.impairment?.status)}
-                </p>
+                <VisualStatus person={person} />
                 <p className="text-zinc-400">
                   Evidence quality: {qualityLabel(person.quality?.score)}
                 </p>
+                <SignalRow person={person} />
               </div>
             );
           })}
