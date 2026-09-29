@@ -35,9 +35,11 @@ interface UserRow {
   homeZoneId: number | null;
   homeDivisionId: number | null;
   homeLobbyId: number | null;
+  crewTypeId: number | null;
   homeZone?: { name: string } | null;
   homeDivision?: { name: string } | null;
   homeLobby?: { name: string } | null;
+  crewType?: { id: number; code: string; name: string } | null;
   lastLoginAt?: string | null;
   faceEnrollmentStatus?: string;
   sourceEnrollment?: { id: number; publicCode: string; status: string } | null;
@@ -59,6 +61,7 @@ const EMPTY = {
   homeZoneId: '',
   homeDivisionId: '',
   homeLobbyId: '',
+  crewTypeId: '',
 };
 
 const MANAGED_ROLES: readonly RmoRoleName[] = ['DIVISION_MONITOR', 'LOBBY_USER', 'CREW_USER'];
@@ -89,6 +92,7 @@ export function UserScreen({
   const [divisions, setDivisions] = useState<Location[]>([]);
   const [lobbies, setLobbies] = useState<Location[]>([]);
   const [filterLobbies, setFilterLobbies] = useState<Location[]>([]);
+  const [crewTypes, setCrewTypes] = useState<Location[]>([]);
   const [confirmDisable, setConfirmDisable] = useState<UserRow | null>(null);
   const [viewing, setViewing] = useState<UserRow | null>(null);
   const assignableRoles = actorRole === 'DIVISION_ADMIN' ? MANAGED_ROLES : RMO_ROLES;
@@ -116,6 +120,9 @@ export function UserScreen({
     apiRequest<Page<Location>>('/api/admin/lobbies?pageSize=50')
       .then(result => setFilterLobbies(result.items))
       .catch(() => setFilterLobbies([]));
+    apiRequest<Page<Location>>('/api/admin/crew-types?status=ACTIVE&pageSize=100')
+      .then(result => setCrewTypes(result.items))
+      .catch(() => setCrewTypes([]));
   }, []);
 
   useEffect(() => {
@@ -157,6 +164,7 @@ export function UserScreen({
       homeZoneId: requirement === 'none' ? null : Number(form.homeZoneId),
       homeDivisionId: requirement === 'none' ? null : Number(form.homeDivisionId),
       homeLobbyId: requirement === 'lobby' ? Number(form.homeLobbyId) : null,
+      crewTypeId: form.rmoRole === 'CREW_USER' ? Number(form.crewTypeId) : null,
     };
     if (!editing && form.password) payload.password = form.password;
     try {
@@ -298,6 +306,7 @@ export function UserScreen({
                 <th className="px-4 py-3 font-medium">Name</th>
                 <th className="px-4 py-3 font-medium">User ID</th>
                 <th className="px-4 py-3 font-medium">Role</th>
+                <th className="px-4 py-3 font-medium">Crew Type</th>
                 <th className="px-4 py-3 font-medium">Face</th>
                 <th className="px-4 py-3 font-medium">Zone</th>
                 <th className="px-4 py-3 font-medium">Division</th>
@@ -316,6 +325,7 @@ export function UserScreen({
                   </td>
                   <td className="px-4 py-3">{row.loginId || '—'}</td>
                   <td className="px-4 py-3">{row.rmoRole}</td>
+                  <td className="px-4 py-3">{row.crewType?.code || '—'}</td>
                   <td className="px-4 py-3 text-xs">
                     {row.rmoRole === 'CREW_USER' ? (
                       row.faceEnrollmentStatus === 'ENROLLED' ? (
@@ -357,6 +367,7 @@ export function UserScreen({
                                 homeZoneId: row.homeZoneId ? String(row.homeZoneId) : '',
                                 homeDivisionId: row.homeDivisionId ? String(row.homeDivisionId) : '',
                                 homeLobbyId: row.homeLobbyId ? String(row.homeLobbyId) : '',
+                                crewTypeId: row.crewTypeId ? String(row.crewTypeId) : '',
                               });
                               setOpen(true);
                             }}
@@ -438,6 +449,25 @@ export function UserScreen({
                 ))}
               </select>
             </div>
+            {form.rmoRole === 'CREW_USER' ? (
+              <div className="space-y-2">
+                <Label htmlFor="user-crew-type">Crew Type</Label>
+                <select
+                  id="user-crew-type"
+                  className="h-9 w-full rounded-md border bg-background px-3 text-sm"
+                  value={form.crewTypeId}
+                  onChange={event => setForm(current => ({ ...current, crewTypeId: event.target.value }))}
+                  required
+                >
+                  <option value="">Select crew type</option>
+                  {crewTypes.map(item => (
+                    <option key={item.id} value={item.id}>
+                      {item.code ? `${item.code} — ${item.name}` : item.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : null}
             {requirement !== 'none' && !lockedDivision ? (
               <>
                 <div className="space-y-2">
@@ -498,6 +528,10 @@ export function UserScreen({
             <div>
               <dt className="text-muted-foreground">Role</dt>
               <dd>{viewing?.rmoRole}</dd>
+            </div>
+            <div>
+              <dt className="text-muted-foreground">Crew Type</dt>
+              <dd>{viewing?.crewType?.code || '—'}</dd>
             </div>
             <div>
               <dt className="text-muted-foreground">Zone</dt>

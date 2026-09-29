@@ -13,7 +13,12 @@ export async function GET(
   if ('response' in auth) return auth.response;
   try {
     const { id } = await context.params;
-    return successResponse(await getSubmission(auth.actor, Number(id)));
+    const registerTypeId = request.nextUrl.searchParams.get('registerTypeId');
+    return successResponse(
+      await getSubmission(auth.actor, Number(id), {
+        registerTypeId: registerTypeId ? Number(registerTypeId) : undefined,
+      }),
+    );
   } catch (error) {
     return adminErrorResponse(error);
   }

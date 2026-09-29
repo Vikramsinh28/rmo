@@ -36,11 +36,13 @@ export function StatusPill({ status }: { status: string }) {
   );
 }
 
-export function EmptyState({ title, body }: { title: string; body: string }) {
+export function EmptyState({ title, body }: { title: string; body?: string }) {
   return (
     <div className="rounded-xl border border-dashed bg-card px-6 py-14 text-center">
       <p className="text-sm font-medium">{title}</p>
-      <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">{body}</p>
+      {body ? (
+        <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">{body}</p>
+      ) : null}
     </div>
   );
 }

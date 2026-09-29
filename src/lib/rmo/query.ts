@@ -31,10 +31,14 @@ export function submissionQuery(request: NextRequest) {
     lobbyId: optionalId(params, 'lobbyId'),
     formId: optionalId(params, 'formId'),
     registerId: optionalId(params, 'registerId'),
+    registerTypeId: optionalId(params, 'registerTypeId'),
+    crewTypeId: optionalId(params, 'crewTypeId'),
+    dutyTypeId: optionalId(params, 'dutyTypeId'),
     userId: optionalId(params, 'userId'),
     dateFrom: params.get('dateFrom') || undefined,
     dateTo: params.get('dateTo') || undefined,
     page: optionalId(params, 'page'),
     pageSize: optionalId(params, 'pageSize'),
+    format: params.get('format') || undefined,
   };
 }

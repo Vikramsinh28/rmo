@@ -38,8 +38,13 @@ export async function cleanupDatabase() {
       await tx.lobbyCall.deleteMany({});
       await tx.lobbyRoom.deleteMany({});
       await tx.crewEnrollment.deleteMany({});
+      await tx.submissionAnswer.deleteMany({});
       await tx.submission.deleteMany({});
+      await tx.questionRegister.deleteMany({});
+      await tx.questionConfiguration.deleteMany({});
+      await tx.question.deleteMany({});
       await tx.register.deleteMany({});
+      await tx.registerType.deleteMany({});
       await tx.formAssignment.deleteMany({});
       await tx.form.updateMany({ data: { currentVersionId: null } });
       await tx.formVersion.deleteMany({});
@@ -48,7 +53,10 @@ export async function cleanupDatabase() {
       await tx.creditHistory.deleteMany({});
       await tx.file.deleteMany({});
       await tx.package.deleteMany({});
+      await tx.user.updateMany({ data: { crewTypeId: null } });
       await tx.user.deleteMany({});
+      await tx.crewType.deleteMany({});
+      await tx.dutyType.deleteMany({});
       await tx.device.deleteMany({});
       await tx.lobby.deleteMany({});
       await tx.division.deleteMany({});

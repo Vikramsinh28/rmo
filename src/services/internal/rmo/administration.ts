@@ -33,6 +33,7 @@ const userSelect = {
   homeZoneId: true,
   homeDivisionId: true,
   homeLobbyId: true,
+  crewTypeId: true,
   profilePicture: true,
   isOnboarded: true,
   createdAt: true,
@@ -42,6 +43,7 @@ const userSelect = {
   homeLobby: {
     select: { id: true, name: true, code: true, divisionId: true, status: true },
   },
+  crewType: { select: { id: true, code: true, name: true, status: true } },
   sourceEnrollment: { select: { id: true, publicCode: true, status: true } },
 } satisfies Prisma.UserSelect;
 
@@ -51,6 +53,7 @@ export type Actor = {
   homeZoneId: number | null;
   homeDivisionId: number | null;
   homeLobbyId: number | null;
+  crewTypeId: number | null;
   accountStatus: AccountStatus;
 };
 
@@ -583,6 +586,27 @@ export interface UserWriteInput extends HomeLocationInput {
   password?: string;
   rmoRole: string;
   accountStatus?: string;
+  crewTypeId?: number | null;
+}
+
+async function resolveCrewTypeId(role: string, crewTypeId: number | null | undefined) {
+  if (role !== 'CREW_USER') {
+    if (crewTypeId != null) {
+      throw new RmoError('Crew type can only be set for crew users.', 400);
+    }
+    return null;
+  }
+  if (crewTypeId == null || !Number.isInteger(crewTypeId)) {
+    throw new RmoError('Crew type is required for crew users.', 400);
+  }
+  const crewType = await prisma.crewType.findUnique({
+    where: { id: crewTypeId },
+    select: { id: true, status: true },
+  });
+  if (!crewType || crewType.status !== 'ACTIVE') {
+    throw new RmoError('Crew type was not found or is inactive.', 400);
+  }
+  return crewType.id;
 }
 
 export async function createDirectoryUser(actor: Actor, input: UserWriteInput) {
@@ -623,6 +647,7 @@ export async function createDirectoryUser(actor: Actor, input: UserWriteInput) {
     throw new RmoError(passwordCheck.errors.join(', '), 400);
   }
   const password = await hashPassword(input.password);
+  const crewTypeId = await resolveCrewTypeId(input.rmoRole, input.crewTypeId);
   try {
     const user = await prisma.user.create({
       data: {
@@ -637,6 +662,7 @@ export async function createDirectoryUser(actor: Actor, input: UserWriteInput) {
         homeZoneId: location.zone?.id ?? null,
         homeDivisionId: location.division?.id ?? null,
         homeLobbyId: location.lobby?.id ?? null,
+        crewTypeId,
       },
       select: userSelect,
     });
@@ -648,11 +674,13 @@ export async function createDirectoryUser(actor: Actor, input: UserWriteInput) {
       homeZoneId: user.homeZoneId,
       homeDivisionId: user.homeDivisionId,
       homeLobbyId: user.homeLobbyId,
+      crewTypeId: user.crewTypeId,
       after: {
         rmoRole: user.rmoRole,
         homeDivisionId: user.homeDivisionId,
         homeLobbyId: user.homeLobbyId,
         accountStatus: user.accountStatus,
+        crewTypeId: user.crewTypeId,
       },
     });
     return user;
@@ -746,6 +774,16 @@ export async function updateDirectoryUser(
     throw new RmoError('You cannot disable your own account.', 403);
   }
 
+  const crewTypeChanging =
+    input.crewTypeId !== undefined || (requestedRole != null && requestedRole !== existing.rmoRole);
+  let nextCrewTypeId: number | null | undefined = undefined;
+  if (crewTypeChanging) {
+    nextCrewTypeId = await resolveCrewTypeId(
+      nextRole,
+      input.crewTypeId !== undefined ? input.crewTypeId : existing.crewTypeId,
+    );
+  }
+
   const user = await prisma.user.update({
     where: { id },
     data: {
@@ -758,6 +796,7 @@ export async function updateDirectoryUser(
           }
         : {}),
       ...(status ? { accountStatus: status } : {}),
+      ...(nextCrewTypeId !== undefined ? { crewTypeId: nextCrewTypeId } : {}),
       homeZoneId: location.zone?.id ?? null,
       homeDivisionId: location.division?.id ?? null,
       homeLobbyId: location.lobby?.id ?? null,
@@ -787,6 +826,7 @@ export async function updateDirectoryUser(
       accountStatus: existing.accountStatus,
       homeDivisionId: existing.homeDivisionId,
       homeLobbyId: existing.homeLobbyId,
+      crewTypeId: existing.crewTypeId,
     },
     after: {
       name: user.name,
@@ -794,6 +834,7 @@ export async function updateDirectoryUser(
       accountStatus: user.accountStatus,
       homeDivisionId: user.homeDivisionId,
       homeLobbyId: user.homeLobbyId,
+      crewTypeId: user.crewTypeId,
     },
   });
   return user;

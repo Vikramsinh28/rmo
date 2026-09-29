@@ -41,6 +41,9 @@ export function SubmissionListScreen() {
   const [error, setError] = useState('');
   const [forms, setForms] = useState<Option[]>([]);
   const [registers, setRegisters] = useState<Option[]>([]);
+  const [registerTypes, setRegisterTypes] = useState<Option[]>([]);
+  const [crewTypes, setCrewTypes] = useState<Option[]>([]);
+  const [dutyTypes, setDutyTypes] = useState<Option[]>([]);
   const [lobbies, setLobbies] = useState<Option[]>([]);
   const [users, setUsers] = useState<Option[]>([]);
   const [divisions, setDivisions] = useState<Option[]>([]);
@@ -48,6 +51,9 @@ export function SubmissionListScreen() {
     search: '',
     formId: '',
     registerId: params.get('registerId') || '',
+    registerTypeId: params.get('registerTypeId') || '',
+    crewTypeId: '',
+    dutyTypeId: '',
     lobbyId: '',
     userId: '',
     divisionId: '',
@@ -78,12 +84,18 @@ export function SubmissionListScreen() {
 
   useEffect(() => {
     const load = async () => {
-      const [formPage, lobbyPage] = await Promise.all([
+      const [formPage, lobbyPage, crewPage, dutyPage, registerTypePage] = await Promise.all([
         apiRequest<{ items: Option[] }>('/api/admin/forms?pageSize=50').catch(() => ({ items: [] })),
         apiRequest<{ items: Option[] }>('/api/admin/lobbies?pageSize=50').catch(() => ({ items: [] })),
+        apiRequest<{ items: Option[] }>('/api/admin/crew-types?pageSize=50').catch(() => ({ items: [] })),
+        apiRequest<{ items: Option[] }>('/api/admin/duty-types?pageSize=50').catch(() => ({ items: [] })),
+        apiRequest<{ items: Option[] }>('/api/admin/register-types?pageSize=50').catch(() => ({ items: [] })),
       ]);
       setForms(formPage.items);
       setLobbies(lobbyPage.items);
+      setCrewTypes(crewPage.items);
+      setDutyTypes(dutyPage.items);
+      setRegisterTypes(registerTypePage.items);
       if (role === 'SYSTEM_ADMIN' || role === 'DIVISION_ADMIN' || role === 'DIVISION_MONITOR') {
         const registerPage = await apiRequest<{ items: Option[] }>('/api/admin/registers?pageSize=50').catch(() => ({ items: [] }));
         setRegisters(registerPage.items);
@@ -145,10 +157,22 @@ export function SubmissionListScreen() {
         </select>
         {registers.length > 0 ? (
           <select aria-label="Register" className="h-9 rounded-md border bg-background px-3 text-sm" value={filters.registerId} onChange={event => setFilter('registerId', event.target.value)}>
-            <option value="">All registers</option>
+            <option value="">Form registers</option>
             {registers.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
           </select>
         ) : null}
+        <select aria-label="Register type" className="h-9 rounded-md border bg-background px-3 text-sm" value={filters.registerTypeId} onChange={event => setFilter('registerTypeId', event.target.value)}>
+          <option value="">All register types</option>
+          {registerTypes.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
+        </select>
+        <select aria-label="Crew type" className="h-9 rounded-md border bg-background px-3 text-sm" value={filters.crewTypeId} onChange={event => setFilter('crewTypeId', event.target.value)}>
+          <option value="">All crew types</option>
+          {crewTypes.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
+        </select>
+        <select aria-label="Duty type" className="h-9 rounded-md border bg-background px-3 text-sm" value={filters.dutyTypeId} onChange={event => setFilter('dutyTypeId', event.target.value)}>
+          <option value="">All duty types</option>
+          {dutyTypes.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
+        </select>
         <select aria-label="Lobby" className="h-9 rounded-md border bg-background px-3 text-sm" value={filters.lobbyId} onChange={event => setFilter('lobbyId', event.target.value)}>
           <option value="">All lobbies</option>
           {lobbies.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}

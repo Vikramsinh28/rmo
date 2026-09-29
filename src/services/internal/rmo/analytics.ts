@@ -155,3 +155,155 @@ export async function lobbyAnalytics(actor: Actor, filter: SubmissionFilter) {
       .sort((left, right) => right.count - left.count),
   };
 }
+
+async function namedGroup(
+  ids: number[],
+  loader: (ids: number[]) => Promise<Array<{ id: number; name: string; code?: string }>>,
+) {
+  if (!ids.length) return new Map<number, string>();
+  const rows = await loader(ids);
+  return new Map(rows.map(row => [row.id, row.code ? `${row.code}` : row.name]));
+}
+
+export async function crewTypeAnalytics(actor: Actor, filter: SubmissionFilter) {
+  const { where } = await scoped(actor, filter);
+  const grouped = await prisma.submission.groupBy({
+    by: ['crewTypeId'],
+    where: { AND: [where, { crewTypeId: { not: null } }] },
+    _count: { _all: true },
+  });
+  const names = await namedGroup(
+    grouped.flatMap(row => (row.crewTypeId == null ? [] : [row.crewTypeId])),
+    ids => prisma.crewType.findMany({ where: { id: { in: ids } }, select: { id: true, name: true, code: true } }),
+  );
+  return {
+    items: grouped
+      .map(row => ({
+        crewTypeId: row.crewTypeId,
+        name: row.crewTypeId == null ? 'Unknown' : names.get(row.crewTypeId) || 'Crew type',
+        count: row._count._all,
+      }))
+      .sort((left, right) => right.count - left.count),
+  };
+}
+
+export async function dutyTypeAnalytics(actor: Actor, filter: SubmissionFilter) {
+  const { where } = await scoped(actor, filter);
+  const grouped = await prisma.submission.groupBy({
+    by: ['dutyTypeId'],
+    where: { AND: [where, { dutyTypeId: { not: null } }] },
+    _count: { _all: true },
+  });
+  const names = await namedGroup(
+    grouped.flatMap(row => (row.dutyTypeId == null ? [] : [row.dutyTypeId])),
+    ids => prisma.dutyType.findMany({ where: { id: { in: ids } }, select: { id: true, name: true, code: true } }),
+  );
+  return {
+    items: grouped
+      .map(row => ({
+        dutyTypeId: row.dutyTypeId,
+        name: row.dutyTypeId == null ? 'Unknown' : names.get(row.dutyTypeId) || 'Duty type',
+        count: row._count._all,
+      }))
+      .sort((left, right) => right.count - left.count),
+  };
+}
+
+export async function registerTypeAnalytics(actor: Actor, filter: SubmissionFilter) {
+  const { where } = await scoped(actor, filter);
+  const submissions = await prisma.submission.findMany({
+    where,
+    select: {
+      id: true,
+      answerRows: {
+        select: {
+          question: {
+            select: {
+              registers: { select: { registerTypeId: true, registerType: { select: { code: true, name: true } } } },
+            },
+          },
+        },
+      },
+    },
+  });
+  const counts = new Map<number, { id: number; name: string; code: string; submissions: Set<number>; answers: number }>();
+  for (const submission of submissions) {
+    for (const answer of submission.answerRows) {
+      for (const reg of answer.question.registers) {
+        const current = counts.get(reg.registerTypeId) ?? {
+          id: reg.registerTypeId,
+          name: reg.registerType.name,
+          code: reg.registerType.code,
+          submissions: new Set<number>(),
+          answers: 0,
+        };
+        current.submissions.add(submission.id);
+        current.answers += 1;
+        counts.set(reg.registerTypeId, current);
+      }
+    }
+  }
+  return {
+    items: [...counts.values()]
+      .map(row => ({
+        registerTypeId: row.id,
+        name: row.code,
+        code: row.code,
+        submissionCount: row.submissions.size,
+        answerCount: row.answers,
+        count: row.submissions.size,
+      }))
+      .sort((left, right) => right.count - left.count),
+  };
+}
+
+export async function crossAnalytics(actor: Actor, filter: SubmissionFilter) {
+  const { where } = await scoped(actor, filter);
+  const [byCrewDuty, byDivision] = await Promise.all([
+    prisma.submission.groupBy({
+      by: ['crewTypeId', 'dutyTypeId'],
+      where: {
+        AND: [where, { crewTypeId: { not: null } }, { dutyTypeId: { not: null } }],
+      },
+      _count: { _all: true },
+    }),
+    prisma.submission.groupBy({
+      by: ['divisionId'],
+      where,
+      _count: { _all: true },
+    }),
+  ]);
+  const crewIds = [...new Set(byCrewDuty.flatMap(row => (row.crewTypeId == null ? [] : [row.crewTypeId])))];
+  const dutyIds = [...new Set(byCrewDuty.flatMap(row => (row.dutyTypeId == null ? [] : [row.dutyTypeId])))];
+  const divisionIds = byDivision.map(row => row.divisionId);
+  const [crews, duties, divisions] = await Promise.all([
+    crewIds.length
+      ? prisma.crewType.findMany({ where: { id: { in: crewIds } }, select: { id: true, code: true } })
+      : [],
+    dutyIds.length
+      ? prisma.dutyType.findMany({ where: { id: { in: dutyIds } }, select: { id: true, code: true } })
+      : [],
+    divisionIds.length
+      ? prisma.division.findMany({ where: { id: { in: divisionIds } }, select: { id: true, name: true } })
+      : [],
+  ]);
+  const crewNames = new Map(crews.map(row => [row.id, row.code]));
+  const dutyNames = new Map(duties.map(row => [row.id, row.code]));
+  const divisionNames = new Map(divisions.map(row => [row.id, row.name]));
+  return {
+    crewDuty: byCrewDuty.map(row => ({
+      crewTypeId: row.crewTypeId,
+      dutyTypeId: row.dutyTypeId,
+      crewType: row.crewTypeId == null ? '' : crewNames.get(row.crewTypeId) || '',
+      dutyType: row.dutyTypeId == null ? '' : dutyNames.get(row.dutyTypeId) || '',
+      count: row._count._all,
+    })),
+    divisions: byDivision
+      .map(row => ({
+        divisionId: row.divisionId,
+        name: divisionNames.get(row.divisionId) || 'Division',
+        count: row._count._all,
+      }))
+      .sort((left, right) => right.count - left.count),
+  };
+}

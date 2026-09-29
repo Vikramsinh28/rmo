@@ -16,6 +16,50 @@ function assertLocalDevDatabase(url: string) {
   }
 }
 
+async function upsertMaster(
+  prisma: PrismaClient,
+  model: 'crewType' | 'dutyType' | 'registerType',
+  code: string,
+  name: string,
+  description: string,
+  createdById: number,
+) {
+  if (model === 'crewType') {
+    const existing = await prisma.crewType.findUnique({ where: { code } });
+    if (existing) {
+      return prisma.crewType.update({
+        where: { id: existing.id },
+        data: { name, description, status: 'ACTIVE' },
+      });
+    }
+    return prisma.crewType.create({
+      data: { code, name, description, status: 'ACTIVE', createdById },
+    });
+  }
+  if (model === 'dutyType') {
+    const existing = await prisma.dutyType.findUnique({ where: { code } });
+    if (existing) {
+      return prisma.dutyType.update({
+        where: { id: existing.id },
+        data: { name, description, status: 'ACTIVE' },
+      });
+    }
+    return prisma.dutyType.create({
+      data: { code, name, description, status: 'ACTIVE', createdById },
+    });
+  }
+  const existing = await prisma.registerType.findUnique({ where: { code } });
+  if (existing) {
+    return prisma.registerType.update({
+      where: { id: existing.id },
+      data: { name, description, status: 'ACTIVE' },
+    });
+  }
+  return prisma.registerType.create({
+    data: { code, name, description, status: 'ACTIVE', createdById },
+  });
+}
+
 async function main() {
   const databaseUrl = process.env.POSTGRES_URL;
   if (!databaseUrl) {
@@ -50,8 +94,24 @@ async function main() {
   }
 
   const admin = await prisma.user.findFirst({ where: { loginId: DEV_LOGIN_ID } });
+  if (!admin) throw new Error('System admin was not seeded');
+
+  await upsertMaster(prisma, 'crewType', 'ALP', 'ALP', 'Assistant Loco Pilot', admin.id);
+  await upsertMaster(prisma, 'crewType', 'LP', 'LP', 'Loco Pilot', admin.id);
+  await upsertMaster(prisma, 'crewType', 'TM', 'TM', 'Train Manager', admin.id);
+  await upsertMaster(prisma, 'dutyType', 'SIGN_ON', 'Sign On', 'Sign-on duty context', admin.id);
+  await upsertMaster(prisma, 'dutyType', 'SIGN_OFF', 'Sign Off', 'Sign-off duty context', admin.id);
+  await upsertMaster(
+    prisma,
+    'registerType',
+    'DETONATOR',
+    'Detonator',
+    'Detonator register classification',
+    admin.id,
+  );
+
   const enrollmentForm = await prisma.form.findFirst({ where: { purpose: 'CREW_ENROLLMENT' } });
-  if (admin && !enrollmentForm) {
+  if (!enrollmentForm) {
     const form = await prisma.form.create({
       data: {
         name: 'Crew Enrollment',
@@ -106,7 +166,40 @@ async function main() {
     });
   }
 
+  let crewForm = await prisma.form.findFirst({
+    where: { purpose: 'CREW_REGISTRATION' },
+    include: { currentVersion: true },
+  });
+  if (!crewForm) {
+    crewForm = await prisma.form.create({
+      data: {
+        name: 'Crew Registration',
+        description: 'Single crew registration form resolved by crew type and duty type.',
+        purpose: 'CREW_REGISTRATION',
+        status: 'PUBLISHED',
+        createdById: admin.id,
+      },
+      include: { currentVersion: true },
+    });
+    const version = await prisma.formVersion.create({
+      data: {
+        formId: crewForm.id,
+        versionNumber: 1,
+        status: 'PUBLISHED',
+        createdById: admin.id,
+        schema: { sections: ['Questions'], fields: [] },
+      },
+    });
+    crewForm = await prisma.form.update({
+      where: { id: crewForm.id },
+      data: { currentVersionId: version.id },
+      include: { currentVersion: true },
+    });
+  }
+
   console.log(`Seeded local system admin ${DEV_LOGIN_ID} / ${DEV_EMAIL}`);
+  console.log('Seeded crew types ALP/LP/TM, duty types SIGN_ON/SIGN_OFF, register DETONATOR');
+  console.log(`Crew registration form id=${crewForm.id}`);
   await prisma.$disconnect();
 }
 

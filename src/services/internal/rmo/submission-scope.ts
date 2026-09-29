@@ -11,11 +11,15 @@ export interface SubmissionFilter {
   lobbyId?: number;
   formId?: number;
   registerId?: number;
+  registerTypeId?: number;
+  crewTypeId?: number;
+  dutyTypeId?: number;
   userId?: number;
   dateFrom?: string;
   dateTo?: string;
   page?: number;
   pageSize?: number;
+  format?: string;
 }
 
 const DENIED = 'You do not have permission to perform this action.';
@@ -107,6 +111,9 @@ export async function buildSubmissionWhere(
   const lobbyId = integerId(filter.lobbyId, 'Lobby');
   const formId = integerId(filter.formId, 'Form');
   const registerId = integerId(filter.registerId, 'Register');
+  const registerTypeId = integerId(filter.registerTypeId, 'Register type');
+  const crewTypeId = integerId(filter.crewTypeId, 'Crew type');
+  const dutyTypeId = integerId(filter.dutyTypeId, 'Duty type');
   const userId = integerId(filter.userId, 'User');
   rejectForeignDivision(actor, divisionId);
 
@@ -170,6 +177,37 @@ export async function buildSubmissionWhere(
     where.divisionId = register.divisionId;
     parts.push(Prisma.sql`"formId" = ${register.formId}`);
     parts.push(Prisma.sql`"divisionId" = ${register.divisionId}`);
+  }
+
+  if (registerTypeId != null) {
+    const registerType = await prisma.registerType.findUnique({
+      where: { id: registerTypeId },
+      select: { id: true },
+    });
+    if (!registerType) throw new RmoError('Register type was not found.', 400);
+    where.answerRows = {
+      some: {
+        question: {
+          registers: { some: { registerTypeId } },
+        },
+      },
+    };
+    parts.push(Prisma.sql`EXISTS (
+      SELECT 1 FROM "SubmissionAnswer" sa
+      JOIN "QuestionRegister" qr ON qr."questionId" = sa."questionId"
+      WHERE sa."submissionId" = "Submission".id
+        AND qr."registerTypeId" = ${registerTypeId}
+    )`);
+  }
+
+  if (crewTypeId != null) {
+    where.crewTypeId = crewTypeId;
+    parts.push(Prisma.sql`"crewTypeId" = ${crewTypeId}`);
+  }
+
+  if (dutyTypeId != null) {
+    where.dutyTypeId = dutyTypeId;
+    parts.push(Prisma.sql`"dutyTypeId" = ${dutyTypeId}`);
   }
 
   if (formId != null && registerId == null) {

@@ -46,6 +46,8 @@ export function EnrollmentReviewScreen({ enrollmentId }: { enrollmentId: number 
   const [row, setRow] = useState<Enrollment | null>(null);
   const [lobbies, setLobbies] = useState<Lobby[]>([]);
   const [lobbyId, setLobbyId] = useState('');
+  const [crewTypeId, setCrewTypeId] = useState('');
+  const [crewTypes, setCrewTypes] = useState<Array<{ id: number; code: string; name: string }>>([]);
   const [reason, setReason] = useState('');
   const [mode, setMode] = useState<'approve' | 'reject' | null>(null);
   const [error, setError] = useState('');
@@ -74,13 +76,18 @@ export function EnrollmentReviewScreen({ enrollmentId }: { enrollmentId: number 
     apiRequest<{ items: Lobby[] }>('/api/admin/lobbies?pageSize=50')
       .then(result => setLobbies(result.items))
       .catch(() => setLobbies([]));
+    apiRequest<{ items: Array<{ id: number; code: string; name: string }> }>(
+      '/api/admin/crew-types?status=ACTIVE&pageSize=100',
+    )
+      .then(result => setCrewTypes(result.items))
+      .catch(() => setCrewTypes([]));
   }, [canDecide]);
 
   const approve = async () => {
     try {
       const updated = await apiRequest<Enrollment>(`/api/admin/crew-enrollments/${enrollmentId}/approve`, {
         method: 'POST',
-        body: JSON.stringify({ lobbyId: Number(lobbyId) }),
+        body: JSON.stringify({ lobbyId: Number(lobbyId), crewTypeId: Number(crewTypeId) }),
       });
       setRow(updated);
       setMode(null);
@@ -179,6 +186,23 @@ export function EnrollmentReviewScreen({ enrollmentId }: { enrollmentId: number 
               <dt className="text-muted-foreground">Final lobby</dt>
               <select aria-label="Final lobby" className="mt-1 h-9 w-full rounded-md border bg-background px-3 text-sm" value={lobbyId} onChange={event => setLobbyId(event.target.value)}>
                 {lobbies.map(lobby => <option key={lobby.id} value={lobby.id}>{lobby.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <dt className="text-muted-foreground">Crew Type</dt>
+              <select
+                aria-label="Crew type"
+                className="mt-1 h-9 w-full rounded-md border bg-background px-3 text-sm"
+                value={crewTypeId}
+                onChange={event => setCrewTypeId(event.target.value)}
+                required
+              >
+                <option value="">Select crew type</option>
+                {crewTypes.map(item => (
+                  <option key={item.id} value={item.id}>
+                    {item.code} — {item.name}
+                  </option>
+                ))}
               </select>
             </div>
             <Item label="Role" value="CREW_USER" />

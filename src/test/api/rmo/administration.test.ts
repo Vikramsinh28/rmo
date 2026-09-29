@@ -30,6 +30,14 @@ jest.mock('next/headers', () => ({
   })),
 }));
 
+async function ensureAlpCrewType() {
+  const existing = await testPrisma.crewType.findUnique({ where: { code: 'ALP' } });
+  if (existing) return existing;
+  return testPrisma.crewType.create({
+    data: { code: 'ALP', name: 'ALP', description: 'Assistant Loco Pilot', status: 'ACTIVE' },
+  });
+}
+
 const PASSWORD = 'TestPassword123!';
 
 async function requestFor(
@@ -208,6 +216,7 @@ describe('RMO administration security', () => {
     );
     expect(lobbyResponse.status).toBe(201);
     const lobby = (await lobbyResponse.json()).data;
+    const alp = await ensureAlpCrewType();
 
     const created = await createUser(
       await requestFor(admin, '/api/admin/users', 'POST', {
@@ -219,11 +228,13 @@ describe('RMO administration security', () => {
         homeZoneId: zone.id,
         homeDivisionId: division.id,
         homeLobbyId: lobby.id,
+        crewTypeId: alp.id,
       }),
     );
     expect(created.status).toBe(201);
     const createdBody = await created.json();
     expect(createdBody.data.password).toBeUndefined();
+    expect(createdBody.data.crewTypeId).toBe(alp.id);
 
     const mismatched = await createUser(
       await requestFor(admin, '/api/admin/users', 'POST', {
@@ -235,6 +246,7 @@ describe('RMO administration security', () => {
         homeZoneId: zone.id,
         homeDivisionId: division.id,
         homeLobbyId: 99999,
+        crewTypeId: alp.id,
       }),
     );
     expect(mismatched.status).toBe(400);
@@ -334,6 +346,7 @@ describe('RMO administration security', () => {
         )
       ).json()
     ).data;
+    const alp = await ensureAlpCrewType();
     const crewInDivision = await createUser(
       await requestFor(divisionAdmin, '/api/admin/users', 'POST', {
         name: 'Ahmedabad Crew',
@@ -344,6 +357,7 @@ describe('RMO administration security', () => {
         homeZoneId: zone.id,
         homeDivisionId: ahmedabad.id,
         homeLobbyId: vatva.id,
+        crewTypeId: alp.id,
       }),
     );
     expect(crewInDivision.status).toBe(201);
@@ -357,6 +371,7 @@ describe('RMO administration security', () => {
         rmoRole: 'CREW_USER',
         homeZoneId: zone.id,
         homeDivisionId: surat.id,
+        crewTypeId: alp.id,
       }),
     );
     expect(outside.status).toBe(403);

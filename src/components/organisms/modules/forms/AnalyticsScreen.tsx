@@ -51,15 +51,24 @@ export function AnalyticsScreen() {
     lobbyId: '',
     formId: '',
     registerId: '',
+    registerTypeId: '',
+    crewTypeId: '',
+    dutyTypeId: '',
     status: '',
   });
   const [divisions, setDivisions] = useState<Option[]>([]);
   const [lobbies, setLobbies] = useState<Option[]>([]);
   const [forms, setForms] = useState<Option[]>([]);
   const [registers, setRegisters] = useState<Option[]>([]);
+  const [registerTypes, setRegisterTypes] = useState<Option[]>([]);
+  const [crewTypes, setCrewTypes] = useState<Option[]>([]);
+  const [dutyTypes, setDutyTypes] = useState<Option[]>([]);
   const [payload, setPayload] = useState<AnalyticsPayload | null>(null);
   const [byForm, setByForm] = useState<Array<{ name: string; count: number }>>([]);
   const [byLobby, setByLobby] = useState<Array<{ name: string; count: number }>>([]);
+  const [byCrew, setByCrew] = useState<Array<{ name: string; count: number }>>([]);
+  const [byDuty, setByDuty] = useState<Array<{ name: string; count: number }>>([]);
+  const [byRegister, setByRegister] = useState<Array<{ name: string; count: number }>>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -77,11 +86,17 @@ export function AnalyticsScreen() {
       apiRequest<AnalyticsPayload>(`/api/analytics/submissions?${query}`),
       apiRequest<{ items: Array<{ name: string; count: number }> }>(`/api/analytics/forms?${query}`),
       apiRequest<{ items: Array<{ name: string; count: number }> }>(`/api/analytics/lobbies?${query}`),
+      apiRequest<{ items: Array<{ name: string; count: number }> }>(`/api/analytics/crew-types?${query}`),
+      apiRequest<{ items: Array<{ name: string; count: number }> }>(`/api/analytics/duty-types?${query}`),
+      apiRequest<{ items: Array<{ name: string; count: number }> }>(`/api/analytics/register-types?${query}`),
     ])
-      .then(([summary, formsResult, lobbiesResult]) => {
+      .then(([summary, formsResult, lobbiesResult, crewResult, dutyResult, registerResult]) => {
         setPayload(summary);
         setByForm(formsResult.items);
         setByLobby(lobbiesResult.items);
+        setByCrew(crewResult.items);
+        setByDuty(dutyResult.items);
+        setByRegister(registerResult.items);
         setError('');
       })
       .catch(cause => setError(cause instanceof Error ? cause.message : 'Unable to load analytics'))
@@ -92,6 +107,9 @@ export function AnalyticsScreen() {
     apiRequest<{ items: Option[] }>('/api/admin/forms?pageSize=50').then(result => setForms(result.items)).catch(() => setForms([]));
     apiRequest<{ items: Option[] }>('/api/admin/lobbies?pageSize=50').then(result => setLobbies(result.items)).catch(() => setLobbies([]));
     apiRequest<{ items: Option[] }>('/api/admin/registers?pageSize=50').then(result => setRegisters(result.items)).catch(() => setRegisters([]));
+    apiRequest<{ items: Option[] }>('/api/admin/register-types?pageSize=50').then(result => setRegisterTypes(result.items)).catch(() => setRegisterTypes([]));
+    apiRequest<{ items: Option[] }>('/api/admin/crew-types?pageSize=50').then(result => setCrewTypes(result.items)).catch(() => setCrewTypes([]));
+    apiRequest<{ items: Option[] }>('/api/admin/duty-types?pageSize=50').then(result => setDutyTypes(result.items)).catch(() => setDutyTypes([]));
     if (role === 'SYSTEM_ADMIN') {
       apiRequest<{ items: Option[] }>('/api/admin/divisions?pageSize=50')
         .then(result => setDivisions(result.items))
@@ -165,8 +183,20 @@ export function AnalyticsScreen() {
           {forms.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
         </select>
         <select aria-label="Register" className="h-9 rounded-md border bg-background px-3 text-sm" value={filters.registerId} onChange={event => setFilters(current => ({ ...current, registerId: event.target.value }))}>
-          <option value="">All registers</option>
+          <option value="">Form registers</option>
           {registers.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
+        </select>
+        <select aria-label="Register type" className="h-9 rounded-md border bg-background px-3 text-sm" value={filters.registerTypeId} onChange={event => setFilters(current => ({ ...current, registerTypeId: event.target.value }))}>
+          <option value="">All register types</option>
+          {registerTypes.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
+        </select>
+        <select aria-label="Crew type" className="h-9 rounded-md border bg-background px-3 text-sm" value={filters.crewTypeId} onChange={event => setFilters(current => ({ ...current, crewTypeId: event.target.value }))}>
+          <option value="">All crew types</option>
+          {crewTypes.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
+        </select>
+        <select aria-label="Duty type" className="h-9 rounded-md border bg-background px-3 text-sm" value={filters.dutyTypeId} onChange={event => setFilters(current => ({ ...current, dutyTypeId: event.target.value }))}>
+          <option value="">All duty types</option>
+          {dutyTypes.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
         </select>
         <select aria-label="Status" className="h-9 rounded-md border bg-background px-3 text-sm" value={filters.status} onChange={event => setFilters(current => ({ ...current, status: event.target.value }))}>
           <option value="">All statuses</option>
@@ -205,6 +235,18 @@ export function AnalyticsScreen() {
             <article className="rounded-xl border bg-card p-4">
               <h2 className="mb-3 text-sm font-medium">Submissions by lobby</h2>
               <BarList items={byLobby.map(item => ({ label: item.name, count: item.count }))} empty="No lobby activity in this range." />
+            </article>
+            <article className="rounded-xl border bg-card p-4">
+              <h2 className="mb-3 text-sm font-medium">Submissions by crew type</h2>
+              <BarList items={byCrew.map(item => ({ label: item.name, count: item.count }))} empty="No crew type activity in this range." />
+            </article>
+            <article className="rounded-xl border bg-card p-4">
+              <h2 className="mb-3 text-sm font-medium">Submissions by duty type</h2>
+              <BarList items={byDuty.map(item => ({ label: item.name, count: item.count }))} empty="No duty type activity in this range." />
+            </article>
+            <article className="rounded-xl border bg-card p-4">
+              <h2 className="mb-3 text-sm font-medium">Submissions by register</h2>
+              <BarList items={byRegister.map(item => ({ label: item.name, count: item.count }))} empty="No register activity in this range." />
             </article>
           </div>
         </>

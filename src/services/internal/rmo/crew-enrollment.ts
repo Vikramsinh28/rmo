@@ -426,6 +426,7 @@ export interface ApprovalInput {
   rmoRole?: string;
   password?: string;
   passwordHash?: string;
+  crewTypeId?: number;
 }
 
 export async function approveCrewEnrollment(actor: Actor, id: number, input: ApprovalInput) {
@@ -442,6 +443,16 @@ export async function approveCrewEnrollment(actor: Actor, id: number, input: App
     throw new RmoError(DENIED, 403);
   }
   if (!Number.isInteger(input.lobbyId)) throw new RmoError('A lobby in your division is required.', 400);
+  if (!Number.isInteger(input.crewTypeId)) {
+    throw new RmoError('Crew type is required when approving a crew user.', 400);
+  }
+  const crewType = await prisma.crewType.findUnique({
+    where: { id: input.crewTypeId },
+    select: { id: true, status: true },
+  });
+  if (!crewType || crewType.status !== 'ACTIVE') {
+    throw new RmoError('Crew type was not found or is inactive.', 400);
+  }
 
   const lobby = await prisma.lobby.findFirst({
     where: { id: input.lobbyId, status: 'ACTIVE' },
@@ -486,8 +497,16 @@ export async function approveCrewEnrollment(actor: Actor, id: number, input: App
           homeZoneId: lobby.division.zoneId,
           homeDivisionId: actor.homeDivisionId,
           homeLobbyId: lobby.id,
+          crewTypeId: crewType.id,
         },
-        select: { id: true, rmoRole: true, accountStatus: true, homeDivisionId: true, homeLobbyId: true },
+        select: {
+          id: true,
+          rmoRole: true,
+          accountStatus: true,
+          homeDivisionId: true,
+          homeLobbyId: true,
+          crewTypeId: true,
+        },
       });
 
       let formSubmissionId: number | null = null;
@@ -531,6 +550,7 @@ export async function approveCrewEnrollment(actor: Actor, id: number, input: App
             rmoRole: 'CREW_USER',
             accountStatus: 'ACTIVE',
             enrollmentId: existing.id,
+            crewTypeId: user.crewTypeId,
           },
         },
       });

@@ -83,6 +83,7 @@ model User {
   homeZoneId         Int?
   homeDivisionId     Int?
   homeLobbyId        Int?
+  crewTypeId         Int?
   files              File[]
   creditHistory      CreditHistory[]
   blogs              Blog[]
@@ -93,10 +94,15 @@ model User {
   homeZone           Zone?               @relation("HomeZone", fields: [homeZoneId], references: [id])
   homeDivision       Division?           @relation("HomeDivision", fields: [homeDivisionId], references: [id])
   homeLobby          Lobby?              @relation("HomeLobby", fields: [homeLobbyId], references: [id])
+  crewType           CrewType?           @relation(fields: [crewTypeId], references: [id])
   auditLogs          AuditLog[]
   formsCreated       Form[]              @relation("FormCreator")
   formVersionsCreated FormVersion[]      @relation("FormVersionCreator")
   registersCreated   Register[]          @relation("RegisterCreator")
+  registerTypesCreated RegisterType[]    @relation("RegisterTypeCreator")
+  crewTypesCreated   CrewType[]          @relation("CrewTypeCreator")
+  dutyTypesCreated   DutyType[]          @relation("DutyTypeCreator")
+  questionsCreated   Question[]          @relation("QuestionCreator")
   submissionsAuthored Submission[]       @relation("SubmissionAuthor")
   enrollmentsReviewed CrewEnrollment[]   @relation("EnrollmentReviewer")
   sourceEnrollment   CrewEnrollment?     @relation("EnrollmentAccount")
@@ -114,6 +120,7 @@ model User {
   @@index([accountStatus])
   @@index([homeDivisionId])
   @@index([homeLobbyId])
+  @@index([crewTypeId])
 }
 
 model Package {
@@ -423,6 +430,17 @@ enum FormStatus {
 enum FormPurpose {
   GENERAL
   CREW_ENROLLMENT
+  CREW_REGISTRATION
+}
+
+enum MasterStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum QuestionStatus {
+  ACTIVE
+  INACTIVE
 }
 
 enum FormVersionStatus {
@@ -489,10 +507,122 @@ model FormVersion {
   currentFor  Form?            @relation("CurrentFormVersion")
   submissions Submission[]
   crewEnrollments CrewEnrollment[]
+  questionConfigurations QuestionConfiguration[]
 
   @@unique([formId, versionNumber])
   @@index([formId])
   @@index([status])
+}
+
+model CrewType {
+  id          Int          @id @default(autoincrement())
+  code        String       @unique
+  name        String
+  description String       @default("")
+  status      MasterStatus @default(ACTIVE)
+  createdById Int?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  createdBy              User?                   @relation("CrewTypeCreator", fields: [createdById], references: [id])
+  users                  User[]
+  questionConfigurations QuestionConfiguration[]
+  submissions            Submission[]
+
+  @@index([status])
+}
+
+model DutyType {
+  id          Int          @id @default(autoincrement())
+  code        String       @unique
+  name        String
+  description String       @default("")
+  status      MasterStatus @default(ACTIVE)
+  createdById Int?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  createdBy              User?                   @relation("DutyTypeCreator", fields: [createdById], references: [id])
+  questionConfigurations QuestionConfiguration[]
+  submissions            Submission[]
+
+  @@index([status])
+}
+
+model RegisterType {
+  id          Int          @id @default(autoincrement())
+  code        String       @unique
+  name        String
+  description String       @default("")
+  status      MasterStatus @default(ACTIVE)
+  createdById Int?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  createdBy         User?              @relation("RegisterTypeCreator", fields: [createdById], references: [id])
+  questionRegisters QuestionRegister[]
+
+  @@index([status])
+}
+
+model Question {
+  id          Int            @id @default(autoincrement())
+  code        String         @unique
+  text        String
+  type        String
+  required    Boolean        @default(false)
+  helpText    String         @default("")
+  options     Json           @default("[]")
+  status      QuestionStatus @default(ACTIVE)
+  createdById Int?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  createdBy              User?                   @relation("QuestionCreator", fields: [createdById], references: [id])
+  configurations         QuestionConfiguration[]
+  registers              QuestionRegister[]
+  answers                SubmissionAnswer[]
+
+  @@index([status])
+}
+
+model QuestionConfiguration {
+  id            Int            @id @default(autoincrement())
+  questionId    Int
+  crewTypeId    Int
+  dutyTypeId    Int
+  formVersionId Int
+  displayOrder  Int            @default(0)
+  required      Boolean        @default(false)
+  status        QuestionStatus @default(ACTIVE)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  question    Question    @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  crewType    CrewType    @relation(fields: [crewTypeId], references: [id])
+  dutyType    DutyType    @relation(fields: [dutyTypeId], references: [id])
+  formVersion FormVersion @relation(fields: [formVersionId], references: [id], onDelete: Cascade)
+
+  @@unique([questionId, crewTypeId, dutyTypeId, formVersionId])
+  @@index([crewTypeId])
+  @@index([dutyTypeId])
+  @@index([formVersionId])
+  @@index([crewTypeId, dutyTypeId, formVersionId])
+  @@index([status])
+}
+
+model QuestionRegister {
+  id             Int @id @default(autoincrement())
+  questionId     Int
+  registerTypeId Int
+  createdAt      DateTime @default(now())
+
+  question     Question     @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  registerType RegisterType @relation(fields: [registerTypeId], references: [id], onDelete: Cascade)
+
+  @@unique([questionId, registerTypeId])
+  @@index([questionId])
+  @@index([registerTypeId])
 }
 
 model FormAssignment {
@@ -541,13 +671,20 @@ model Submission {
   submittedAt   DateTime         @default(now())
   status        SubmissionStatus @default(COMPLETED)
   answers       Json
+  crewTypeId    Int?
+  crewTypeName  String?
+  dutyTypeId    Int?
+  dutyTypeName  String?
 
   form        Form        @relation(fields: [formId], references: [id])
   formVersion FormVersion @relation(fields: [formVersionId], references: [id])
   division    Division    @relation(fields: [divisionId], references: [id])
   lobby       Lobby?      @relation(fields: [lobbyId], references: [id])
   submittedBy User        @relation("SubmissionAuthor", fields: [submittedById], references: [id])
+  crewType    CrewType?   @relation(fields: [crewTypeId], references: [id])
+  dutyType    DutyType?   @relation(fields: [dutyTypeId], references: [id])
   crewEnrollment CrewEnrollment?
+  answerRows  SubmissionAnswer[]
 
   @@index([formId])
   @@index([formVersionId])
@@ -555,6 +692,27 @@ model Submission {
   @@index([lobbyId])
   @@index([submittedById])
   @@index([status])
+  @@index([crewTypeId])
+  @@index([dutyTypeId])
+  @@index([submittedAt])
+  @@index([crewTypeId, dutyTypeId])
+  @@index([divisionId, crewTypeId, submittedAt])
+}
+
+model SubmissionAnswer {
+  id           Int      @id @default(autoincrement())
+  submissionId Int
+  questionId   Int
+  answer       Json
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  submission Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  question   Question   @relation(fields: [questionId], references: [id])
+
+  @@unique([submissionId, questionId])
+  @@index([submissionId])
+  @@index([questionId])
 }
 
 model CrewEnrollment {

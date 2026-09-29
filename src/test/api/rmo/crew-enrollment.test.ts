@@ -112,6 +112,7 @@ describe('crew enrollment', () => {
     vatva: { id: number };
     botad: { id: number };
     suratLobby: { id: number };
+    alp: { id: number };
   };
 
   beforeEach(async () => {
@@ -157,6 +158,9 @@ describe('crew enrollment', () => {
       },
     });
     await prisma.form.update({ where: { id: form.id }, data: { currentVersionId: version.id } });
+    const alp = await prisma.crewType.create({
+      data: { code: `ALP${sequence}`, name: 'ALP', status: 'ACTIVE' },
+    });
     org = {
       system,
       ahmedabadAdmin: await userWith({
@@ -181,6 +185,7 @@ describe('crew enrollment', () => {
       vatva,
       botad,
       suratLobby,
+      alp,
     };
   });
 
@@ -298,7 +303,10 @@ describe('crew enrollment', () => {
     );
     expect((await jsonOf(suratList)).data.items).toHaveLength(0);
     expect((await approveEnrollment(
-      requestFor(org.suratAdmin, `/api/admin/crew-enrollments/${id}/approve`, 'POST', { lobbyId: org.vatva.id }),
+      requestFor(org.suratAdmin, `/api/admin/crew-enrollments/${id}/approve`, 'POST', {
+        lobbyId: org.vatva.id,
+        crewTypeId: org.alp.id,
+      }),
       context(id),
     )).status).toBe(403);
     expect((await rejectEnrollment(
@@ -309,6 +317,7 @@ describe('crew enrollment', () => {
     const wrongRole = await approveEnrollment(
       requestFor(org.ahmedabadAdmin, `/api/admin/crew-enrollments/${id}/approve`, 'POST', {
         lobbyId: org.botad.id,
+        crewTypeId: org.alp.id,
         rmoRole: 'SYSTEM_ADMIN',
       }),
       context(id),
@@ -317,6 +326,7 @@ describe('crew enrollment', () => {
     const setPassword = await approveEnrollment(
       requestFor(org.ahmedabadAdmin, `/api/admin/crew-enrollments/${id}/approve`, 'POST', {
         lobbyId: org.botad.id,
+        crewTypeId: org.alp.id,
         password: 'AdminSet123!',
       }),
       context(id),
@@ -325,6 +335,7 @@ describe('crew enrollment', () => {
     const outsideLobby = await approveEnrollment(
       requestFor(org.ahmedabadAdmin, `/api/admin/crew-enrollments/${id}/approve`, 'POST', {
         lobbyId: org.suratLobby.id,
+        crewTypeId: org.alp.id,
       }),
       context(id),
     );
@@ -333,6 +344,7 @@ describe('crew enrollment', () => {
     const approved = await approveEnrollment(
       requestFor(org.ahmedabadAdmin, `/api/admin/crew-enrollments/${id}/approve`, 'POST', {
         lobbyId: org.botad.id,
+        crewTypeId: org.alp.id,
       }),
       context(id),
     );
@@ -346,6 +358,7 @@ describe('crew enrollment', () => {
     expect(user?.accountStatus).toBe('ACTIVE');
     expect(user?.homeDivisionId).toBe(org.ahmedabad.id);
     expect(user?.homeLobbyId).toBe(org.botad.id);
+    expect(user?.crewTypeId).toBe(org.alp.id);
     expect(user?.password?.startsWith('$2')).toBe(true);
     const enrollment = await prisma.crewEnrollment.findUnique({ where: { id } });
     expect(enrollment?.createdUserId).toBe(user?.id);
@@ -413,7 +426,10 @@ describe('crew enrollment', () => {
     expect(filteredBody.data.items[0].requestedDivision.name).toBe('Surat');
     const id = allBody.data.items[0].id;
     const approve = await approveEnrollment(
-      requestFor(org.system, `/api/admin/crew-enrollments/${id}/approve`, 'POST', { lobbyId: org.vatva.id }),
+      requestFor(org.system, `/api/admin/crew-enrollments/${id}/approve`, 'POST', {
+        lobbyId: org.vatva.id,
+        crewTypeId: org.alp.id,
+      }),
       context(id),
     );
     expect(approve.status).toBe(403);

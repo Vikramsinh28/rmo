@@ -155,6 +155,24 @@ export const NAVIGATION_ITEMS: NavigationSection[] = [
         roles: SYSTEM,
       },
       {
+        title: 'Crew Types',
+        url: siteConfig.baseLinks.crewTypes,
+        icon: CircleUser,
+        roles: SYSTEM,
+      },
+      {
+        title: 'Duty Types',
+        url: siteConfig.baseLinks.dutyTypes,
+        icon: ClipboardList,
+        roles: SYSTEM,
+      },
+      {
+        title: 'Registers',
+        url: siteConfig.baseLinks.registerTypes,
+        icon: BookMarked,
+        roles: SYSTEM,
+      },
+      {
         title: 'Roles',
         url: siteConfig.baseLinks.roles,
         icon: Shield,
@@ -217,13 +235,43 @@ export const NAVIGATION_ITEMS: NavigationSection[] = [
     label: 'Records',
     items: [
       {
+        title: 'Crew Registration',
+        url: siteConfig.baseLinks.crewRegistration,
+        icon: ClipboardPen,
+        roles: ['CREW_USER'],
+      },
+      {
         title: 'Forms',
         url: siteConfig.baseLinks.forms,
         icon: ClipboardPen,
         roles: FORM_USE,
       },
       {
-        title: 'Registers',
+        title: 'Questions',
+        url: siteConfig.baseLinks.questions,
+        icon: ClipboardList,
+        roles: FORM_READ,
+      },
+      {
+        title: 'Question Configuration',
+        url: siteConfig.baseLinks.questionConfiguration,
+        icon: ClipboardList,
+        roles: SYSTEM,
+      },
+      {
+        title: 'Question → Register',
+        url: siteConfig.baseLinks.questionRegisters,
+        icon: BookMarked,
+        roles: SYSTEM,
+      },
+      {
+        title: 'Form Preview',
+        url: siteConfig.baseLinks.formPreview,
+        icon: ClipboardPen,
+        roles: FORM_READ,
+      },
+      {
+        title: 'Form Registers',
         url: siteConfig.baseLinks.registers,
         icon: BookMarked,
         roles: FORM_READ,
@@ -239,6 +287,18 @@ export const NAVIGATION_ITEMS: NavigationSection[] = [
         url: siteConfig.baseLinks.analytics,
         icon: ChartNoAxesCombined,
         roles: FORM_ADMIN,
+      },
+      {
+        title: 'Exports',
+        url: siteConfig.baseLinks.exports,
+        icon: Inbox,
+        roles: FORM_ADMIN,
+      },
+      {
+        title: 'Legacy Import',
+        url: siteConfig.baseLinks.legacyImport,
+        icon: ScrollText,
+        roles: SYSTEM,
       },
     ],
   },
