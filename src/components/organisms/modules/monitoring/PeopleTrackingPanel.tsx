@@ -9,6 +9,14 @@ interface SafetySignalView {
 
 interface TrackedPersonView {
   trackId: string;
+  role?: 'subject' | 'other';
+  notices?: string[];
+  drowsiness?: {
+    status?: string;
+    closedFraction?: number | null;
+    slumpedFraction?: number | null;
+    headStill?: boolean | null;
+  } | null;
   identity?: {
     status?: string;
     displayName?: string | null;
@@ -33,7 +41,7 @@ interface TrackedPersonView {
     signals?: SafetySignalView[];
     requiresHumanVerification?: boolean;
     guidance?: string | null;
-  };
+  } | null;
   face?: {
     visible?: boolean;
     headPose?: { pitch?: number | null; yaw?: number | null; roll?: number | null };
@@ -91,6 +99,8 @@ function visualLabel(status: string | undefined) {
     case 'HIGH_INDICATORS':
     case 'CRITICAL':
       return 'High Visual Impairment Indicators';
+    case 'NOT_ASSESSED':
+      return 'Not assessed (not the interview subject)';
     case 'INSUFFICIENT_EVIDENCE':
     default:
       return 'Insufficient Evidence';
@@ -132,6 +142,25 @@ function VisualStatus({ person }: { person: TrackedPersonView }) {
   );
 }
 
+function Drowsiness({ person }: { person: TrackedPersonView }) {
+  const status = person.drowsiness?.status;
+  if (!status) return null;
+  const closed = person.drowsiness?.closedFraction;
+  const slumped = person.drowsiness?.headStill ? person.drowsiness?.slumpedFraction : null;
+  const parts = [
+    closed == null ? null : `eyes closed ${Math.round(closed * 100)}%`,
+    slumped ? `head slumped ${Math.round(slumped * 100)}%` : null,
+  ].filter(Boolean);
+  const detail = parts.length ? ` · ${parts.join(', ')} of last 20 s` : '';
+  if (status === 'POSSIBLE_DROWSINESS') {
+    return <p className="font-medium text-fuchsia-300">Possible drowsiness{detail}</p>;
+  }
+  if (status === 'NONE') {
+    return <p className="text-zinc-400">Drowsiness: none{detail}</p>;
+  }
+  return <p className="text-zinc-500">Drowsiness: not enough face or head data yet</p>;
+}
+
 function formatConfidence(confidence: number | null | undefined) {
   if (confidence == null) return '—';
   const pct = confidence > 1 ? confidence : confidence * 100;
@@ -152,7 +181,7 @@ function identityHeadline(person: TrackedPersonView) {
   const status = person.identity?.status || person.identityStatus || 'UNKNOWN';
   if (status === 'RECOGNIZED') {
     return {
-      title: `Recognized: ${person.identity?.displayName || 'Crew Member'}`,
+      title: `✓ ${person.identity?.displayName || 'Crew Member'}`,
       subtitle: 'Recognized',
       className: 'text-emerald-300',
     };
@@ -215,6 +244,12 @@ function signalLabel(signal: SafetySignalView) {
   return signal.label || signal.type || 'Signal';
 }
 
+function subjectFirst(persons: TrackedPersonView[]) {
+  return [...persons].sort(
+    (a, b) => Number(b.role === 'subject') - Number(a.role === 'subject'),
+  );
+}
+
 export function PeopleTrackingPanel({
   persons,
   processing,
@@ -247,9 +282,11 @@ export function PeopleTrackingPanel({
         <p className="mt-2 text-zinc-500">No people in the current sample.</p>
       ) : (
         <div className="mt-2 max-h-72 space-y-2 overflow-y-auto">
-          {persons.map(person => {
+          {subjectFirst(persons).map(person => {
             const headline = identityHeadline(person);
             const recognized = person.identity?.status === 'RECOGNIZED';
+            const other = person.role === 'other';
+            const lying = person.notices?.includes('LYING_DOWN');
             const safety = safetyPresentation(person);
             const signals = person.safety?.signals || [];
             const needsVerify = Boolean(
@@ -261,9 +298,19 @@ export function PeopleTrackingPanel({
             return (
               <div
                 key={person.trackId}
-                className="rounded-lg border border-white/10 bg-white/5 px-2 py-2"
+                className={`rounded-lg border px-2 py-2 ${other ? 'border-white/5 bg-white/[0.02] opacity-80' : 'border-white/10 bg-white/5'}`}
               >
-                <p className="font-medium text-zinc-100">{person.trackId}</p>
+                <p className="font-medium text-zinc-100">
+                  {person.trackId}
+                  {person.role ? (
+                    <span className={`ml-2 rounded px-1.5 py-0.5 text-[10px] font-normal ${other ? 'bg-zinc-700 text-zinc-300' : 'bg-sky-700 text-sky-100'}`}>
+                      {other ? 'Other person' : 'Interview subject'}
+                    </span>
+                  ) : null}
+                </p>
+                {lying ? (
+                  <p className="font-medium text-violet-300">Lying down — check the person is safe</p>
+                ) : null}
                 <p className={headline.className}>{headline.title}</p>
                 <p className="text-zinc-400">
                   {recognized ? 'Recognized' : headline.subtitle}
@@ -276,36 +323,45 @@ export function PeopleTrackingPanel({
                 <p className="text-zinc-400">
                   Last checked: {checkedAgo(person.identity?.lastCheckedAt)}
                 </p>
-                <p className={`mt-1 font-medium ${safety.className}`}>
-                  Safety: {safety.icon} {safety.label}
-                </p>
-                {signals.length > 0 ? (
-                  <ul className="mt-1 space-y-0.5 text-zinc-300">
-                    {signals.map(signal => (
-                      <li key={`${person.trackId}-${signal.type}-${signal.durationMs}`}>
-                        • {signalLabel(signal)} — {formatDuration(signal.durationMs)}
-                      </li>
-                    ))}
-                  </ul>
+                {!other ? (
+                  <>
+                    <p className={`mt-1 font-medium ${safety.className}`}>
+                      Safety: {safety.icon} {safety.label}
+                    </p>
+                    {signals.length > 0 ? (
+                      <ul className="mt-1 space-y-0.5 text-zinc-300">
+                        {signals.map(signal => (
+                          <li key={`${person.trackId}-${signal.type}-${signal.durationMs}`}>
+                            • {signalLabel(signal)} — {formatDuration(signal.durationMs)}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : null}
+                  </>
                 ) : null}
                 <VisualStatus person={person} />
-                <p className="text-zinc-400">
-                  Evidence quality: {qualityLabel(person.quality?.score)}
-                </p>
-                <SignalRow person={person} />
-                {needsVerify ? (
-                  <p className="mt-1 text-[11px] text-amber-200/90">
-                    Potential impairment indicator — requires human verification.
-                  </p>
-                ) : null}
+                <Drowsiness person={person} />
+                {other ? null : (
+                  <>
+                    <p className="text-zinc-400">
+                      Evidence quality: {qualityLabel(person.quality?.score)}
+                    </p>
+                    <SignalRow person={person} />
+                    {needsVerify ? (
+                      <p className="mt-1 text-[11px] text-amber-200/90">
+                        Potential impairment indicator — requires human verification.
+                      </p>
+                    ) : null}
+                  </>
+                )}
               </div>
             );
           })}
         </div>
       )}
       <p className="mt-2 text-[10px] text-zinc-500">
-        Temporal safety uses eye-closure / head-down duration. Not alcohol diagnosis.
-        Identity is quality-gated separately. Manual Recognize Faces remains separate.
+        Only the interview subject is assessed for safety/drowsiness. Not alcohol diagnosis.
+        Identity is quality-gated separately. Track IDs are temporary.
       </p>
     </aside>
   );

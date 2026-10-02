@@ -247,7 +247,6 @@ async function browserWalk(checks, org) {
       throw new Error(`Dialog did not open after a real click at ${box.x},${box.y}\n${error}`);
     }
     await page.select('select[aria-label="Final lobby"]', String(org.botad.id));
-    const dialogButtons = await page.$$('button');
     const clicked = await page.evaluate(() => {
       const button = [...document.querySelectorAll('button')].find(node => (node.textContent || '').includes('Approve enrollment'));
       button?.click();

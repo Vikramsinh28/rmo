@@ -52,14 +52,23 @@ export function DeskWorkspace({
   const [callShare, setCallShare] = useState(0.6);
   const [heroId, setHeroId] = useState<number | null>(null);
   const [expanded, setExpanded] = useState<Feed | null>(null);
-  shareRef.current = callShare;
-
   useEffect(() => {
-    let cancelled = false;
+    shareRef.current = callShare;
+  }, [callShare]);
+
+  const [shownLobbyId, setShownLobbyId] = useState(lobbyId);
+  if (shownLobbyId !== lobbyId) {
+    setShownLobbyId(lobbyId);
     setFeeds(null);
     setHeroId(null);
     setExpanded(null);
-    setCallShare(readShare(lobbyId));
+  }
+
+  useEffect(() => {
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (!cancelled) setCallShare(readShare(lobbyId));
+    });
     apiRequest<{ items: Feed[] }>(`/api/admin/devices?status=ACTIVE&lobbyId=${lobbyId}&pageSize=50`)
       .then(page => {
         if (!cancelled) setFeeds(orderedFeeds(page.items));

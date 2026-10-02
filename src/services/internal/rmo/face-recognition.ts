@@ -184,7 +184,7 @@ export async function recognizeFacesInCall(actor: Actor, callId: number, frame: 
   recognitionRequestCounts.set(callId, (recognitionRequestCounts.get(callId) || 0) + 1);
 
   const threshold = recognitionMatchThreshold();
-  let faces: RecognitionFaceResult[] = [];
+  const faces: RecognitionFaceResult[] = [];
 
   try {
     const provider = getFaceSearchProvider();

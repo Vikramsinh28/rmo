@@ -883,6 +883,11 @@ enum SafetyEventSeverity {
   HIGH_INDICATORS
 }
 
+enum SafetyEventKind {
+  VISUAL_INDICATORS
+  DROWSINESS
+}
+
 enum SafetyEventStatus {
   PENDING_REVIEW
   CONFIRMED
@@ -908,6 +913,7 @@ model SafetyEvent {
   subjectUserId       Int?
   subjectName         String?
   identityConfidence  Float?
+  kind                SafetyEventKind     @default(VISUAL_INDICATORS)
   severity            SafetyEventSeverity
   peakScore           Float
   confidence          Float

@@ -104,7 +104,7 @@ export function LiveSafetyReviewDrawer({ callId }: { callId: number }) {
           ) : events.length ? (
             <ul className="space-y-2">
               {events.map(event => {
-                const badge = severityBadge(event.severity);
+                const badge = severityBadge(event.severity, event.kind);
                 return (
                   <li key={event.id}>
                     <button

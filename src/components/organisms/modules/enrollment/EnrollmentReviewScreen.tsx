@@ -52,8 +52,13 @@ export function EnrollmentReviewScreen({ enrollmentId }: { enrollmentId: number 
   const [loading, setLoading] = useState(true);
   const canDecide = role === 'DIVISION_ADMIN';
 
-  const load = () => {
+  const [requestedId, setRequestedId] = useState(enrollmentId);
+  if (requestedId !== enrollmentId) {
+    setRequestedId(enrollmentId);
     setLoading(true);
+  }
+
+  useEffect(() => {
     apiRequest<Enrollment>(`/api/admin/crew-enrollments/${enrollmentId}`)
       .then(result => {
         setRow(result);
@@ -62,10 +67,6 @@ export function EnrollmentReviewScreen({ enrollmentId }: { enrollmentId: number 
       })
       .catch(cause => setError(cause instanceof Error ? cause.message : 'Unable to load enrollment'))
       .finally(() => setLoading(false));
-  };
-
-  useEffect(() => {
-    load();
   }, [enrollmentId]);
 
   useEffect(() => {

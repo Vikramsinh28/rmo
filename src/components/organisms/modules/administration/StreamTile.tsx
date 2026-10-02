@@ -32,6 +32,13 @@ function HlsVideo({ url, mode }: { url: string; mode: 'hls' | 'file' }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
+  const source = `${mode}|${url}`;
+  const [shownSource, setShownSource] = useState(source);
+  if (shownSource !== source) {
+    setShownSource(source);
+    setError('');
+    setLoading(true);
+  }
 
   useEffect(() => {
     const video = videoRef.current;
@@ -39,8 +46,6 @@ function HlsVideo({ url, mode }: { url: string; mode: 'hls' | 'file' }) {
     let cancelled = false;
     let hls: Hls | null = null;
     let attempts = 0;
-    setError('');
-    setLoading(true);
 
     const play = () => {
       video.play().catch(() => undefined);
@@ -57,9 +62,9 @@ function HlsVideo({ url, mode }: { url: string; mode: 'hls' | 'file' }) {
       }
     };
 
-    const start = () => {
+    const start = (retry = false) => {
       if (cancelled) return;
-      setLoading(true);
+      if (retry) setLoading(true);
       hls?.destroy();
       hls = null;
       video.removeAttribute('src');
@@ -100,7 +105,7 @@ function HlsVideo({ url, mode }: { url: string; mode: 'hls' | 'file' }) {
           hls = null;
           return;
         }
-        window.setTimeout(start, 2000);
+        window.setTimeout(() => start(true), 2000);
       });
     };
 
@@ -133,9 +138,13 @@ function HlsVideo({ url, mode }: { url: string; mode: 'hls' | 'file' }) {
 
 function KioskPage({ name, url }: { name: string; url: string }) {
   const [loading, setLoading] = useState(true);
+  const [shownUrl, setShownUrl] = useState(url);
+  if (shownUrl !== url) {
+    setShownUrl(url);
+    setLoading(true);
+  }
 
   useEffect(() => {
-    setLoading(true);
     const timer = window.setTimeout(() => setLoading(false), 12_000);
     return () => window.clearTimeout(timer);
   }, [url]);

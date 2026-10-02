@@ -43,6 +43,8 @@ class Settings(BaseSettings):
     ai_risk_enabled: bool = True
     ai_risk_window_seconds: float = 10.0
     ai_risk_eval_interval_ms: int = 1000
+    # Sustained eye closure on the interview subject → "Possible drowsiness".
+    ai_drowsiness_enabled: bool = True
     # Strict temporal safety (eye closure / head-down). Complements Phase 13 risk.
     safety_detection_enabled: bool = True
     ai_strict_mode: bool = True

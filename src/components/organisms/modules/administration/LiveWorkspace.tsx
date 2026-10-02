@@ -105,9 +105,16 @@ export function LiveWorkspace() {
   const [fullscreenId, setFullscreenId] = useState<string | null>(null);
 
   useEffect(() => {
-    const saved = parseWorkspace(window.localStorage.getItem(storageKey));
-    if (saved) setLayout(saved);
-    setHydrated(true);
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled) return;
+      const saved = parseWorkspace(window.localStorage.getItem(storageKey));
+      if (saved) setLayout(saved);
+      setHydrated(true);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [storageKey]);
 
   useEffect(() => {
@@ -118,17 +125,20 @@ export function LiveWorkspace() {
     return () => window.clearTimeout(handle);
   }, [hydrated, layout, storageKey]);
 
+  const fetchDevices = () => loadActiveDevices()
+    .then(setDevices)
+    .catch(cause => setError(cause instanceof Error ? cause.message : 'Unable to load'))
+    .finally(() => setLoading(false));
+
   const load = () => {
     setLoading(true);
     setError('');
-    loadActiveDevices()
-      .then(setDevices)
-      .catch(cause => setError(cause instanceof Error ? cause.message : 'Unable to load'))
-      .finally(() => setLoading(false));
+    void fetchDevices();
   };
 
   useEffect(() => {
-    load();
+    void fetchDevices();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const active = layout.tabs[layout.activeTabIndex] ?? layout.tabs[0];

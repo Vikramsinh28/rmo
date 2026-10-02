@@ -31,6 +31,7 @@ const eslintConfig = defineConfig([
     '**/dist/',
     '**/infra/',
     '**/node_modules/',
+    'ai-service/',
     '**/.cache/',
     '**/.eslintcache',
     '**/*.generated.*',

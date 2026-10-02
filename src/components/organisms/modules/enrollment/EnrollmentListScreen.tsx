@@ -48,23 +48,29 @@ export function EnrollmentListScreen() {
       .catch(() => setDivisions([]));
   }, [role]);
 
-  useEffect(() => {
-    const query = new URLSearchParams();
-    if (search) query.set('search', search);
-    if (status) query.set('status', status);
-    if (divisionId) query.set('divisionId', divisionId);
-    if (dateFrom) query.set('dateFrom', dateFrom);
-    if (dateTo) query.set('dateTo', dateTo);
-    query.set('pageSize', '20');
+  const query = new URLSearchParams();
+  if (search) query.set('search', search);
+  if (status) query.set('status', status);
+  if (divisionId) query.set('divisionId', divisionId);
+  if (dateFrom) query.set('dateFrom', dateFrom);
+  if (dateTo) query.set('dateTo', dateTo);
+  query.set('pageSize', '20');
+  const queryString = query.toString();
+  const [requested, setRequested] = useState(queryString);
+  if (requested !== queryString) {
+    setRequested(queryString);
     setLoading(true);
-    apiRequest<Page>(`/api/admin/crew-enrollments?${query.toString()}`)
+  }
+
+  useEffect(() => {
+    apiRequest<Page>(`/api/admin/crew-enrollments?${queryString}`)
       .then(result => {
         setPage(result);
         setError('');
       })
       .catch(cause => setError(cause instanceof Error ? cause.message : 'Unable to load enrollments'))
       .finally(() => setLoading(false));
-  }, [search, status, divisionId, dateFrom, dateTo]);
+  }, [queryString]);
 
   return (
     <div className="flex flex-col gap-4 px-4 lg:px-6">
