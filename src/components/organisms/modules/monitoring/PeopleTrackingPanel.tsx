@@ -1,5 +1,12 @@
 'use client';
 
+interface SafetySignalView {
+  type?: string;
+  durationMs?: number;
+  severity?: string;
+  label?: string;
+}
+
 interface TrackedPersonView {
   trackId: string;
   role?: 'subject' | 'other';
@@ -26,7 +33,15 @@ interface TrackedPersonView {
     confidence?: number | null;
     evidence?: string[];
     limitations?: string[];
+    requiresHumanVerification?: boolean;
+    guidance?: string | null;
   };
+  safety?: {
+    state?: string;
+    signals?: SafetySignalView[];
+    requiresHumanVerification?: boolean;
+    guidance?: string | null;
+  } | null;
   face?: {
     visible?: boolean;
     headPose?: { pitch?: number | null; yaw?: number | null; roll?: number | null };
@@ -50,8 +65,8 @@ function SignalRow({ person }: { person: TrackedPersonView }) {
   const sway = person.movement?.lateralSway;
   const signals = [
     `Torso ${degrees(person.body?.torsoAngle)}`,
-    pose?.yaw != null
-      ? `Head ${degrees(pose.pitch)}/${degrees(pose.yaw)}/${degrees(pose.roll)}`
+    pose?.yaw != null || pose?.pitch != null
+      ? `Head ${degrees(pose?.pitch)}/${degrees(pose?.yaw)}/${degrees(pose?.roll)}`
       : 'Head —',
     `Eyes ${eyes == null ? '—' : `${Math.round(eyes * 100)}%`}`,
     `Sway ${sway == null ? '—' : sway.toFixed(3)}`,
@@ -67,6 +82,11 @@ function qualityLabel(score: number | null | undefined) {
   return 'Low';
 }
 
+function formatDuration(ms: number | null | undefined) {
+  if (ms == null || !Number.isFinite(ms)) return '—';
+  return `${(ms / 1000).toFixed(1)} sec`;
+}
+
 function visualLabel(status: string | undefined) {
   switch (status) {
     case 'NORMAL':
@@ -74,8 +94,10 @@ function visualLabel(status: string | undefined) {
     case 'MONITORING':
       return 'Monitoring';
     case 'ELEVATED_INDICATORS':
+    case 'WARNING':
       return 'Elevated Visual Impairment Indicators';
     case 'HIGH_INDICATORS':
+    case 'CRITICAL':
       return 'High Visual Impairment Indicators';
     case 'NOT_ASSESSED':
       return 'Not assessed (not the interview subject)';
@@ -88,8 +110,10 @@ function visualLabel(status: string | undefined) {
 function visualClass(status: string | undefined) {
   switch (status) {
     case 'HIGH_INDICATORS':
+    case 'CRITICAL':
       return 'font-medium text-red-300';
     case 'ELEVATED_INDICATORS':
+    case 'WARNING':
       return 'font-medium text-amber-300';
     case 'MONITORING':
       return 'text-yellow-200';
@@ -102,8 +126,8 @@ function visualClass(status: string | undefined) {
 
 function VisualStatus({ person }: { person: TrackedPersonView }) {
   const impairment = person.impairment;
-  const status = person.visualStatus || impairment?.status;
-  if (!impairment && !status) return null;
+  const status = person.visualStatus || impairment?.status || person.safety?.state;
+  if (!impairment && !status && !person.safety) return null;
   const details = impairment?.evidence?.length ? impairment.evidence : impairment?.limitations;
   return (
     <>
@@ -194,6 +218,32 @@ function identityHeadline(person: TrackedPersonView) {
   };
 }
 
+function safetyPresentation(person: TrackedPersonView) {
+  const state = person.safety?.state
+    || (person.visualStatus === 'HIGH_INDICATORS' ? 'CRITICAL'
+      : person.visualStatus === 'ELEVATED_INDICATORS' ? 'WARNING'
+        : person.visualStatus === 'NORMAL' ? 'NORMAL'
+          : person.visualStatus === 'MONITORING' ? 'WARNING'
+            : 'INSUFFICIENT_EVIDENCE');
+
+  if (state === 'CRITICAL' || state === 'HIGH_INDICATORS') {
+    return { label: 'CRITICAL', className: 'text-red-300', icon: '⛔' };
+  }
+  if (state === 'WARNING' || state === 'ELEVATED_INDICATORS' || state === 'MONITORING') {
+    return { label: 'WARNING', className: 'text-amber-300', icon: '⚠' };
+  }
+  if (state === 'NORMAL') {
+    return { label: 'NORMAL', className: 'text-emerald-300', icon: '●' };
+  }
+  return { label: 'INSUFFICIENT EVIDENCE', className: 'text-zinc-400', icon: '○' };
+}
+
+function signalLabel(signal: SafetySignalView) {
+  if (signal.type === 'EYE_CLOSURE') return 'Eyes closed';
+  if (signal.type === 'HEAD_DOWN') return 'Head down';
+  return signal.label || signal.type || 'Signal';
+}
+
 function subjectFirst(persons: TrackedPersonView[]) {
   return [...persons].sort(
     (a, b) => Number(b.role === 'subject') - Number(a.role === 'subject'),
@@ -203,9 +253,16 @@ function subjectFirst(persons: TrackedPersonView[]) {
 export function PeopleTrackingPanel({
   persons,
   processing,
+  safetySummary,
 }: {
   persons: TrackedPersonView[];
   processing: boolean;
+  safetySummary?: {
+    warningCount?: number;
+    criticalCount?: number;
+    activeAlerts?: unknown[];
+    lastAlertAt?: string | null;
+  } | null;
 }) {
   if (!processing) return null;
 
@@ -216,15 +273,28 @@ export function PeopleTrackingPanel({
         <span className="text-emerald-400">● Processing</span>
       </div>
       <p className="mt-1 text-zinc-400">People detected: {persons.length}</p>
+      {safetySummary ? (
+        <p className="mt-1 text-zinc-500">
+          Alerts: {safetySummary.warningCount ?? 0} warning / {safetySummary.criticalCount ?? 0} critical
+        </p>
+      ) : null}
       {persons.length === 0 ? (
         <p className="mt-2 text-zinc-500">No people in the current sample.</p>
       ) : (
-        <div className="mt-2 max-h-56 space-y-2 overflow-y-auto">
+        <div className="mt-2 max-h-72 space-y-2 overflow-y-auto">
           {subjectFirst(persons).map(person => {
             const headline = identityHeadline(person);
             const recognized = person.identity?.status === 'RECOGNIZED';
             const other = person.role === 'other';
             const lying = person.notices?.includes('LYING_DOWN');
+            const safety = safetyPresentation(person);
+            const signals = person.safety?.signals || [];
+            const needsVerify = Boolean(
+              person.safety?.requiresHumanVerification
+              || person.impairment?.requiresHumanVerification
+              || person.visualStatus === 'ELEVATED_INDICATORS'
+              || person.visualStatus === 'HIGH_INDICATORS',
+            );
             return (
               <div
                 key={person.trackId}
@@ -253,6 +323,22 @@ export function PeopleTrackingPanel({
                 <p className="text-zinc-400">
                   Last checked: {checkedAgo(person.identity?.lastCheckedAt)}
                 </p>
+                {!other ? (
+                  <>
+                    <p className={`mt-1 font-medium ${safety.className}`}>
+                      Safety: {safety.icon} {safety.label}
+                    </p>
+                    {signals.length > 0 ? (
+                      <ul className="mt-1 space-y-0.5 text-zinc-300">
+                        {signals.map(signal => (
+                          <li key={`${person.trackId}-${signal.type}-${signal.durationMs}`}>
+                            • {signalLabel(signal)} — {formatDuration(signal.durationMs)}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : null}
+                  </>
+                ) : null}
                 <VisualStatus person={person} />
                 <Drowsiness person={person} />
                 {other ? null : (
@@ -261,6 +347,11 @@ export function PeopleTrackingPanel({
                       Evidence quality: {qualityLabel(person.quality?.score)}
                     </p>
                     <SignalRow person={person} />
+                    {needsVerify ? (
+                      <p className="mt-1 text-[11px] text-amber-200/90">
+                        Potential impairment indicator — requires human verification.
+                      </p>
+                    ) : null}
                   </>
                 )}
               </div>
@@ -269,8 +360,8 @@ export function PeopleTrackingPanel({
         </div>
       )}
       <p className="mt-2 text-[10px] text-zinc-500">
-        Only the interview subject (largest, most central person) is assessed. Automatic
-        identity is quality-gated (~15s). Track IDs are temporary.
+        Only the interview subject is assessed for safety/drowsiness. Not alcohol diagnosis.
+        Identity is quality-gated separately. Track IDs are temporary.
       </p>
     </aside>
   );

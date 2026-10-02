@@ -45,6 +45,32 @@ class Settings(BaseSettings):
     ai_risk_eval_interval_ms: int = 1000
     # Sustained eye closure on the interview subject → "Possible drowsiness".
     ai_drowsiness_enabled: bool = True
+    # Strict temporal safety (eye closure / head-down). Complements Phase 13 risk.
+    safety_detection_enabled: bool = True
+    ai_strict_mode: bool = True
+    eye_closure_enabled: bool = True
+    eye_closure_alert_after_ms: int = 2000
+    eye_closure_critical_after_ms: int = 4000
+    eye_closure_recovery_ms: int = 500
+    eye_closure_min_face_quality: float = 0.55
+    eye_closure_max_missing_frames: int = 3
+    eye_closure_open_probability_max: float = 0.35
+    head_down_enabled: bool = True
+    head_down_pitch_threshold_deg: float = 25.0
+    head_down_alert_after_ms: int = 2000
+    head_down_critical_after_ms: int = 5000
+    head_down_recovery_ms: int = 1000
+    head_down_max_missing_frames: int = 3
+    head_pose_provider: str = 'heuristic'  # heuristic | mock | unavailable
+    mock_head_pitch_deg: Optional[float] = None
+    mock_eye_open_probability: Optional[float] = None
+    bad_condition_confirmation_frames: int = 2
+    good_condition_recovery_frames: int = 3
+    quality_gap_tolerance_ms: int = 1000
+    safety_alert_cooldown_ms: int = 10_000
+    multi_signal_escalation_enabled: bool = True
+    multi_signal_critical_count: int = 2
+    multi_signal_window_ms: int = 3000
 
 
 settings = Settings()

@@ -38,6 +38,15 @@ interface IdentityResolutionSummary {
   awsAvailable?: boolean;
 }
 
+interface SafetySummary {
+  warningCount?: number;
+  criticalCount?: number;
+  activeAlerts?: unknown[];
+  lastAlertAt?: string | null;
+  strictMode?: boolean;
+  enabled?: boolean;
+}
+
 interface TrackedPersonView {
   trackId: string;
   identity?: {
@@ -50,6 +59,17 @@ interface TrackedPersonView {
   quality?: { score?: number | null };
   visualStatus?: string;
   impairment?: { status?: string };
+  safety?: {
+    state?: string;
+    signals?: Array<{
+      type?: string;
+      durationMs?: number;
+      severity?: string;
+      label?: string;
+    }>;
+    requiresHumanVerification?: boolean;
+    guidance?: string | null;
+  };
 }
 
 const LABELS = [
@@ -76,6 +96,7 @@ export function AICapabilityBadge({
   const [job, setJob] = useState<ProcessingJob | null>(null);
   const [people, setPeople] = useState<TrackedPersonView[]>([]);
   const [identity, setIdentity] = useState<IdentityResolutionSummary | null>(null);
+  const [safety, setSafety] = useState<SafetySummary | null>(null);
   const [busy, setBusy] = useState(false);
   const [callState, setCallState] = useState<{
     callId: number;
@@ -100,6 +121,7 @@ export function AICapabilityBadge({
           processing: ProcessingJob | null;
           people?: { persons?: TrackedPersonView[]; count?: number };
           identityResolution?: IdentityResolutionSummary;
+          safety?: SafetySummary | null;
         }>(`/api/monitoring/calls/${callId}/ai/status`);
         setAi({
           available: page.ai.enabled,
@@ -111,6 +133,7 @@ export function AICapabilityBadge({
         setJob(page.processing);
         setPeople(Array.isArray(page.people?.persons) ? page.people.persons : []);
         setIdentity(page.identityResolution || null);
+        setSafety(page.safety || null);
         setCallState({
           callId,
           connected: page.callStatus === 'CONNECTED',
@@ -123,11 +146,15 @@ export function AICapabilityBadge({
       setJob(null);
       setPeople([]);
       setIdentity(null);
+      setSafety(null);
+      setCallState(null);
     } catch {
       setAi(null);
       setJob(null);
       setPeople([]);
       setIdentity(null);
+      setSafety(null);
+      setCallState(null);
     }
   }, [callId]);
 
@@ -229,8 +256,9 @@ export function AICapabilityBadge({
                   {people.filter(person => person.identity?.status === 'RECOGNIZED').length}
                 </p>
                 <p>
-                  Unknown:{' '}
-                  {people.filter(person => person.identity?.status !== 'RECOGNIZED').length}
+                  Safety warnings: {safety?.warningCount ?? 0}
+                  {' · '}
+                  critical: {safety?.criticalCount ?? 0}
                 </p>
                 <p className="mt-1 font-medium uppercase tracking-wide text-orange-200/70">
                   AI Identity
@@ -244,7 +272,7 @@ export function AICapabilityBadge({
                   {(identity?.requestCount ?? 0)} / 100 identity checks
                 </p>
                 <p className="text-[10px] text-zinc-500">
-                  Auto identity is quality-gated. Manual Recognize Faces is separate.
+                  Temporal safety ≠ alcohol diagnosis. Identity is quality-gated separately.
                 </p>
               </div>
             ) : (
@@ -277,7 +305,11 @@ export function AICapabilityBadge({
           </>
         )}
       </aside>
-      <PeopleTrackingPanel persons={people} processing={processing} />
+      <PeopleTrackingPanel
+        persons={people}
+        processing={processing}
+        safetySummary={safety}
+      />
     </div>
   );
 }

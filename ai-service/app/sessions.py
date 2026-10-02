@@ -59,6 +59,14 @@ class SessionState:
                     'timestamp': tracking.get('timestamp'),
                     'awsCalls': tracking.get('awsCalls', 0),
                 },
+                'safety': tracking.get('safety') or {
+                    'warningCount': 0,
+                    'criticalCount': 0,
+                    'activeAlerts': [],
+                    'lastAlertAt': None,
+                    'strictMode': bool(settings.ai_strict_mode),
+                    'enabled': bool(settings.safety_detection_enabled),
+                },
             }
 
 
