@@ -185,3 +185,5 @@ def test_capabilities_include_tracking():
     assert caps['processing']['personTracking'] is True
     assert caps['tracking']['continuousRekognition'] is False
     assert caps['tracking']['impairmentClassifier'] is False
+    assert caps['safety']['callsAws'] is False
+    assert caps['safety']['doesNotConfirmAlcohol'] is True

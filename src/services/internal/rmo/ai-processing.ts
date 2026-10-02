@@ -173,6 +173,7 @@ async function syncFromAiService(jobId: number) {
       personCount?: number;
       persons?: unknown[];
       tracking?: unknown;
+      safety?: unknown;
     };
     const updated = await prisma.aIProcessingJob.update({
       where: { id: jobId },
@@ -188,6 +189,7 @@ async function syncFromAiService(jobId: number) {
       persons: Array.isArray(body.persons) ? body.persons : [],
       personCount: typeof body.personCount === 'number' ? body.personCount : 0,
       tracking: body.tracking || null,
+      safety: body.safety || null,
     };
   } catch {
     return null;
@@ -208,6 +210,7 @@ export async function getCallAIProcessingStatus(actor: Actor, callId: number) {
   let persons: unknown[] = [];
   let personCount = 0;
   let tracking: unknown = null;
+  let safety: unknown = null;
   if (job && job.status === 'RUNNING') {
     const synced = await syncFromAiService(job.id);
     if (synced) {
@@ -219,6 +222,7 @@ export async function getCallAIProcessingStatus(actor: Actor, callId: number) {
       persons = capabilities.features.impairmentDetection ? merged : stripImpairment(merged);
       personCount = Array.isArray(persons) ? persons.length : synced.personCount;
       tracking = synced.tracking;
+      safety = synced.safety;
     }
   }
   const everStarted = current
@@ -242,6 +246,8 @@ export async function getCallAIProcessingStatus(actor: Actor, callId: number) {
       persons,
       tracking,
     },
+    // Temporal safety counters (in-memory AI session). Not alcohol diagnosis.
+    safety,
     identityResolution: getSessionIdentityMetrics(callId),
     identityRequestCount: getSessionIdentityMetrics(callId).requestCount,
   };

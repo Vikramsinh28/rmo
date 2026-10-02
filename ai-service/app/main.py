@@ -78,6 +78,16 @@ def capabilities() -> dict:
             'windowSeconds': settings.ai_tracking_window_seconds,
             'continuousRekognition': False,
             'impairmentClassifier': False,
+            'temporalSafetyDetection': bool(settings.safety_detection_enabled),
+            'strictMode': bool(settings.ai_strict_mode),
+        },
+        'safety': {
+            'enabled': bool(settings.safety_detection_enabled),
+            'strictMode': bool(settings.ai_strict_mode),
+            'eyeClosureEnabled': bool(settings.eye_closure_enabled),
+            'headDownEnabled': bool(settings.head_down_enabled),
+            'callsAws': False,
+            'doesNotConfirmAlcohol': True,
         },
         'impairmentPoc': impairment,
     }

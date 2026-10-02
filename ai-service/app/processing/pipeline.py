@@ -11,22 +11,49 @@ from app.features.movement_features import MovementFeatureExtractor
 from app.features.pose_features import PoseFeatureExtractor
 from app.features.quality import QualityEngine
 from app.identity.resolver import IdentityResolver, UnknownIdentityResolver
+from app.safety.engine import SafetyDetectionEngine
+from app.safety.models import FrameObservation
 from app.temporal.features import TemporalFeatureExtractor
 from app.temporal.risk import INSUFFICIENT, MODEL_VERSION, RiskEngine
 from app.tracking.detector import PersonDetector, get_person_detector
 from app.tracking.state import RollingPersonStateStore
 from app.tracking.tracker import PersonTracker, get_person_tracker
 
+_STATUS_RANK = {
+    'INSUFFICIENT_EVIDENCE': 0,
+    'NORMAL': 1,
+    'MONITORING': 2,
+    'WARNING': 3,
+    'ELEVATED_INDICATORS': 3,
+    'CRITICAL': 4,
+    'HIGH_INDICATORS': 4,
+}
+
 
 def _utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def _worse_status(left: str, right: str) -> str:
+    if _STATUS_RANK.get(right, 0) > _STATUS_RANK.get(left, 0):
+        return right
+    return left
+
+
+def _normalize_visual(status: str) -> str:
+    if status == 'WARNING':
+        return 'ELEVATED_INDICATORS'
+    if status == 'CRITICAL':
+        return 'HIGH_INDICATORS'
+    return status
+
+
 class FrameProcessingPipeline:
     """
-    Detect → track → features → rolling state.
+    Detect → track → features → rolling state → Phase 13 risk + strict safety.
 
-    No AWS. No impairment classification. Identity defaults to UNKNOWN.
+    No AWS. Identity defaults to UNKNOWN (RMO Phase 11 overlays separately).
+    Safety / risk never call Rekognition and never claim alcohol/intoxication.
     """
 
     def __init__(
@@ -36,12 +63,14 @@ class FrameProcessingPipeline:
         state: Optional[RollingPersonStateStore] = None,
         identity_resolver: Optional[IdentityResolver] = None,
         face_extractor=None,
+        safety: Optional[SafetyDetectionEngine] = None,
     ) -> None:
         self.detector = detector or get_person_detector()
         self.tracker = tracker or get_person_tracker()
         self.state = state or RollingPersonStateStore()
         self.identity = identity_resolver or UnknownIdentityResolver()
         self.face = face_extractor or get_face_extractor()
+        self.safety = safety or SafetyDetectionEngine()
         self.pose = PoseFeatureExtractor()
         self.movement = MovementFeatureExtractor()
         self.quality = QualityEngine()
@@ -54,6 +83,7 @@ class FrameProcessingPipeline:
         self.tracker.reset()
         self.state.reset()
         self.risk.reset()
+        self.safety.reset()
         self._risk_cache.clear()
         self._risk_evaluated_at.clear()
 
@@ -91,6 +121,7 @@ class FrameProcessingPipeline:
         retained = list({*active_ids, *self.tracker.known_track_ids()})
         self.state.drop_missing(retained)
         self.risk.drop_missing(retained)
+        self.safety.drop_missing(retained)
         for track_id in list(self._risk_cache):
             if track_id not in retained:
                 self._risk_cache.pop(track_id, None)
@@ -136,6 +167,42 @@ class FrameProcessingPipeline:
             if identity_confidence is not None and quality.get('score', 1) < 0.4:
                 identity_confidence = round(identity_confidence * float(quality['score']), 4)
 
+            head = face.get('headPose') or {}
+            eyes = face.get('eyes') or {}
+            observation = FrameObservation(
+                timestamp=now,
+                face_visible=bool(face.get('visible')),
+                face_quality=face.get('quality') if face.get('quality') is not None else quality.get('score'),
+                eyes_available=bool(eyes.get('available')),
+                eyes_open_probability=eyes.get('openProbability'),
+                head_pose_available=bool(head.get('available') or head.get('pitch') is not None),
+                head_pitch_deg=head.get('pitch'),
+                movement_level=movement.get('postureStability'),
+            )
+            safety_eval = self.safety.evaluate(
+                person.track_id,
+                observation,
+                first_seen_at=person.first_seen_at,
+            )
+            safety_payload = safety_eval.to_dict()
+
+            # Prefer the stricter of Phase 13 risk vs strict temporal safety.
+            risk_status = str(risk.get('status') or INSUFFICIENT)
+            safety_visual = _normalize_visual(safety_eval.visual_status or safety_eval.state)
+            visual_status = _normalize_visual(_worse_status(risk_status, safety_visual))
+
+            impairment = dict(risk)
+            impairment['status'] = visual_status
+            if safety_eval.requires_human_verification:
+                impairment['requiresHumanVerification'] = True
+                impairment['guidance'] = safety_payload.get('guidance') or (
+                    'Potential impairment indicator detected — requires human verification.'
+                )
+            if safety_eval.confidence is not None:
+                existing_conf = impairment.get('confidence')
+                if existing_conf is None or safety_eval.confidence > float(existing_conf):
+                    impairment['confidence'] = safety_eval.confidence
+
             persons.append({
                 'trackId': person.track_id,
                 'identity': {
@@ -179,8 +246,9 @@ class FrameProcessingPipeline:
                     'lowerBodyVisible': quality.get('lowerBodyVisible'),
                 },
                 # Visual-indicator status stays separate from identity confidence.
-                'impairment': risk,
-                'visualStatus': risk['status'],
+                'impairment': impairment,
+                'visualStatus': visual_status,
+                'safety': safety_payload,
                 'historyLength': len(rollup.history),
             })
 
@@ -195,12 +263,15 @@ class FrameProcessingPipeline:
             'trackingWindowSeconds': settings.ai_tracking_window_seconds,
             'awsCalls': 0,
             'riskModelVersion': MODEL_VERSION,
+            'safety': self.safety.session_summary(),
             'limitations': {
                 'noContinuousRekognition': True,
                 'noImpairmentClassifier': True,
                 'ruleBasedVisualIndicators': True,
+                'temporalSafetyDetection': bool(settings.safety_detection_enabled),
                 'identityDefaultUnknown': True,
                 'doesNotConfirmAlcoholConsumption': True,
+                'requiresHumanVerification': True,
             },
         }
 
