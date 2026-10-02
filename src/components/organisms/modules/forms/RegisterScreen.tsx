@@ -124,7 +124,7 @@ export function RegisterScreen() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Registers</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            A register is a division view over the submissions of one form.
+            A register is a division book whose columns map to form field keys.
           </p>
         </div>
         {canEdit ? (
@@ -178,7 +178,8 @@ export function RegisterScreen() {
                   <td className="px-4 py-3"><StatusPill status={item.status} /></td>
                   <td className="px-4 py-3">
                     <div className="flex flex-wrap gap-3">
-                      <Link className="font-medium underline" href={`/submissions?registerId=${item.id}`}>Submissions</Link>
+                      <Link className="font-medium underline" href={`/registers/${item.id}`}>Open book</Link>
+                      <Link className="underline" href={`/submissions?registerId=${item.id}`}>Submissions</Link>
                       {canEdit ? (
                         <button type="button" className="underline" onClick={() => setStatus(item, item.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE')}>
                           {item.status === 'ACTIVE' ? 'Disable' : 'Enable'}

@@ -119,6 +119,29 @@ export function AnalyticsScreen() {
     }
   };
 
+  const exportExcel = async () => {
+    try {
+      const response = await fetch(`/api/submissions/export/xlsx?${query}`);
+      if (!response.ok) {
+        const body = (await response.json()) as { message?: string };
+        throw new Error(body.message || 'Export failed');
+      }
+      const blob = await response.blob();
+      const disposition = response.headers.get('Content-Disposition') || '';
+      const match = /filename="([^"]+)"/.exec(disposition);
+      const filename = match?.[1] || 'submissions.xlsx';
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      link.click();
+      URL.revokeObjectURL(url);
+      toast.success('Excel export ready');
+    } catch (cause) {
+      toast.error(cause instanceof Error ? cause.message : 'Export failed');
+    }
+  };
+
   const cards = payload
     ? [
         ['Total submissions', payload.metrics.total],
@@ -140,7 +163,10 @@ export function AnalyticsScreen() {
             {payload ? ` Trend is grouped by ${payload.trend.bucket}.` : ''}
           </p>
         </div>
-        <Button className="h-9" variant="outline" onClick={exportCsv}>Export CSV</Button>
+        <div className="flex flex-wrap gap-2">
+          <Button className="h-9" variant="outline" onClick={exportCsv}>Export CSV</Button>
+          <Button className="h-9" variant="outline" onClick={exportExcel}>Export Excel</Button>
+        </div>
       </div>
       <div className="flex flex-wrap gap-2">
         <Button variant="outline" className="h-8" onClick={() => setFilters(current => ({ ...current, dateFrom: isoDaysAgo(6), dateTo: today }))}>Last 7 days</Button>

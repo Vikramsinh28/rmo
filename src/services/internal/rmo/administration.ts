@@ -810,9 +810,6 @@ export async function resetUserPassword(actor: Actor, id: number, password: stri
     if (!canAssignRole(actorRole, asRole(existing.rmoRole))) {
       throw new RmoError('You do not have permission to perform this action.', 403);
     }
-    if (existing.rmoRole === 'CREW_USER') {
-      throw new RmoError('A division admin cannot set a crew password.', 403);
-    }
   } else {
     assertSystem(actor);
   }

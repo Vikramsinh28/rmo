@@ -522,13 +522,30 @@ model Register {
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
 
-  division  Division @relation(fields: [divisionId], references: [id])
-  form      Form     @relation(fields: [formId], references: [id])
-  createdBy User     @relation("RegisterCreator", fields: [createdById], references: [id])
+  division  Division       @relation(fields: [divisionId], references: [id])
+  form      Form           @relation(fields: [formId], references: [id])
+  createdBy User           @relation("RegisterCreator", fields: [createdById], references: [id])
+  fields    RegisterField[]
 
   @@index([divisionId])
   @@index([formId])
   @@index([status])
+}
+
+model RegisterField {
+  id          Int      @id @default(autoincrement())
+  registerId  Int
+  fieldKey    String
+  sortOrder   Int      @default(0)
+  columnLabel String?
+  isKeyField  Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  register Register @relation(fields: [registerId], references: [id], onDelete: Cascade)
+
+  @@unique([registerId, fieldKey])
+  @@index([registerId, sortOrder])
 }
 
 model Submission {

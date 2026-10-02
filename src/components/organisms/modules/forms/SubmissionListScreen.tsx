@@ -120,6 +120,29 @@ export function SubmissionListScreen() {
     }
   };
 
+  const exportExcel = async () => {
+    try {
+      const response = await fetch(`/api/submissions/export/xlsx?${query}`);
+      if (!response.ok) {
+        const body = (await response.json()) as { message?: string };
+        throw new Error(body.message || 'Export failed');
+      }
+      const blob = await response.blob();
+      const disposition = response.headers.get('Content-Disposition') || '';
+      const match = /filename="([^"]+)"/.exec(disposition);
+      const filename = match?.[1] || 'submissions.xlsx';
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      link.click();
+      URL.revokeObjectURL(url);
+      toast.success('Excel export ready');
+    } catch (cause) {
+      toast.error(cause instanceof Error ? cause.message : 'Export failed');
+    }
+  };
+
   const pages = Math.max(1, Math.ceil(total / 20));
   const setFilter = (key: keyof typeof filters, value: string) => {
     setPage(1);
@@ -135,7 +158,12 @@ export function SubmissionListScreen() {
             Each row keeps the division, lobby, and form version from the moment it was submitted.
           </p>
         </div>
-        {canExport ? <Button className="h-9" variant="outline" onClick={exportCsv}>Export CSV</Button> : null}
+        {canExport ? (
+          <div className="flex flex-wrap gap-2">
+            <Button className="h-9" variant="outline" onClick={exportCsv}>Export CSV</Button>
+            <Button className="h-9" variant="outline" onClick={exportExcel}>Export Excel</Button>
+          </div>
+        ) : null}
       </div>
       <div className="grid gap-2 md:grid-cols-4">
         <Input aria-label="Search submissions" placeholder="Search form or person" value={filters.search} onChange={event => setFilter('search', event.target.value)} />

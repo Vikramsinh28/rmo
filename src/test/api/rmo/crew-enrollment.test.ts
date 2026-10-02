@@ -362,7 +362,12 @@ describe('crew enrollment', () => {
       }),
       context(user?.id || 0),
     );
-    expect(reset.status).toBe(403);
+    expect(reset.status).toBe(200);
+    const signedInAfterReset = await AuthService.login({
+      identifier: input.loginId,
+      password: 'NewPassword123!',
+    });
+    expect(signedInAfterReset.success).toBe(true);
 
     const audits = await prisma.auditLog.findMany({
       where: { action: { in: ['crew_enrollment.approved', 'user.created'] } },

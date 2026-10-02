@@ -6,6 +6,7 @@ import { apiRequest } from '@/components/organisms/modules/administration/api';
 import { useAuthStore } from '@/store/auth';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import { toast } from 'sonner';
 import { EmptyState, StatusPill, TableSkeleton } from './form-ui';
 
 interface FormRow {
@@ -53,7 +54,8 @@ export function FormListScreen() {
     setLoading(true);
   }
 
-  useEffect(() => {
+  const load = () => {
+    setLoading(true);
     apiRequest<Page<FormRow>>(`/api/admin/forms?${queryString}`)
       .then(result => {
         setItems(result.items);
@@ -61,7 +63,39 @@ export function FormListScreen() {
       })
       .catch(cause => setError(cause instanceof Error ? cause.message : 'Unable to load forms'))
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [queryString]);
+
+  const seedClientForms = async () => {
+    try {
+      const body =
+        role === 'SYSTEM_ADMIN' && divisionId
+          ? { divisionId: Number(divisionId) }
+          : {};
+      if (role === 'SYSTEM_ADMIN' && !divisionId) {
+        toast.error('Select a division first, then seed client forms.');
+        return;
+      }
+      const result = await apiRequest<{
+        divisionName: string;
+        results: Array<{ formName: string; created: boolean }>;
+      }>('/api/admin/forms/seed-client', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      });
+      const created = result.results.filter(row => row.created).length;
+      toast.success(
+        `Client forms ready for ${result.divisionName}: ${result.results.length} total, ${created} new.`,
+      );
+      load();
+    } catch (cause) {
+      toast.error(cause instanceof Error ? cause.message : 'Unable to seed client forms');
+    }
+  };
 
   return (
     <div className="flex flex-col gap-4 px-4 lg:px-6">
@@ -73,9 +107,14 @@ export function FormListScreen() {
           </p>
         </div>
         {manager ? (
-          <Button className="h-9" asChild>
-            <Link href="/forms/new">New form</Link>
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button className="h-9" variant="outline" onClick={seedClientForms}>
+              Seed client forms
+            </Button>
+            <Button className="h-9" asChild>
+              <Link href="/forms/new">New form</Link>
+            </Button>
+          </div>
         ) : null}
       </div>
       <div className="grid gap-2 md:grid-cols-3">

@@ -39,6 +39,7 @@ export async function cleanupDatabase() {
       await tx.lobbyRoom.deleteMany({});
       await tx.crewEnrollment.deleteMany({});
       await tx.submission.deleteMany({});
+      await tx.registerField.deleteMany({});
       await tx.register.deleteMany({});
       await tx.formAssignment.deleteMany({});
       await tx.form.updateMany({ data: { currentVersionId: null } });

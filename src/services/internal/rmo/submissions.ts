@@ -2,6 +2,15 @@ import { prisma } from '@/lib/prisma';
 import { Prisma, SubmissionStatus } from '@/lib/prisma/generated/client';
 import { FormSchemaError, parseFormSchema, validateAnswers } from '@/lib/rmo/form-schema';
 import { RmoError } from '@/lib/rmo/errors';
+import {
+  buildWorkbookPreview,
+  formatCellDate,
+  formatExportFilenameTimestamp,
+  sanitizeExportFilenamePart,
+  writeWorkbookBuffer,
+  type WorkbookColumn,
+  type WorkbookSheetData,
+} from '@/lib/rmo/xlsx';
 import type { Actor } from '@/services/internal/rmo/administration';
 import { recordAudit } from '@/services/internal/rmo/audit-event';
 import {
@@ -275,6 +284,159 @@ export async function exportSubmissions(actor: Actor, filter: SubmissionFilter) 
     status: filter.status ?? null,
     dateFrom: filter.dateFrom ?? null,
     dateTo: filter.dateTo ?? null,
+    format: 'csv',
   });
   return lines.join('\n');
+}
+
+function answerDisplay(value: unknown): string {
+  if (value == null) return '';
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  if (Array.isArray(value)) return value.map(item => String(item)).join(', ');
+  return JSON.stringify(value);
+}
+
+function buildSubmissionsFilename(filter: SubmissionFilter, exportedAt: Date) {
+  let range = 'all';
+  if (filter.dateFrom && filter.dateTo) range = `${filter.dateFrom}_to_${filter.dateTo}`;
+  else if (filter.dateFrom) range = `from_${filter.dateFrom}`;
+  else if (filter.dateTo) range = `to_${filter.dateTo}`;
+  return `form-submissions-${sanitizeExportFilenamePart(range)}-${formatExportFilenameTimestamp(exportedAt)}.xlsx`;
+}
+
+async function loadExportRows(actor: Actor, filter: SubmissionFilter) {
+  assertAnalyticsReader(actor);
+  const { where } = await buildSubmissionWhere(actor, filter);
+  return prisma.submission.findMany({
+    where,
+    orderBy: { submittedAt: 'desc' },
+    take: 5000,
+    select: submissionSelect,
+  });
+}
+
+function buildFormSheets(
+  rows: Prisma.SubmissionGetPayload<{ select: typeof submissionSelect }>[],
+): WorkbookSheetData[] {
+  const byForm = new Map<number, typeof rows>();
+  for (const row of rows) {
+    const bucket = byForm.get(row.formId) ?? [];
+    bucket.push(row);
+    byForm.set(row.formId, bucket);
+  }
+
+  const sheets: WorkbookSheetData[] = [];
+  for (const [, formRows] of byForm) {
+    const formName = formRows[0]?.form.name || 'Form';
+    const fieldMeta = new Map<string, string>();
+    for (const row of formRows) {
+      const schema = parseFormSchema(row.formVersion.schema);
+      for (const field of schema.fields) {
+        if (!fieldMeta.has(field.key)) fieldMeta.set(field.key, field.label || field.key);
+      }
+    }
+    const fixed: WorkbookColumn[] = [
+      { key: 'submission_id', header: 'Submission ID', width: 14 },
+      { key: 'form_version', header: 'Form Version', width: 12 },
+      { key: 'division', header: 'Division', width: 18 },
+      { key: 'lobby', header: 'Lobby', width: 18 },
+      { key: 'submitted_by', header: 'Submitted By', width: 20 },
+      { key: 'submitted_at', header: 'Submitted At', width: 20 },
+      { key: 'status', header: 'Status', width: 12 },
+    ];
+    const dynamic: WorkbookColumn[] = Array.from(fieldMeta.entries()).map(([key, label]) => ({
+      key: `f_${key}`,
+      header: label,
+      width: Math.max(18, Math.min(48, label.length + 6)),
+    }));
+    const sheetRows = formRows.map(row => {
+      const answers =
+        row.answers && typeof row.answers === 'object' && !Array.isArray(row.answers)
+          ? (row.answers as Record<string, unknown>)
+          : {};
+      const out: Record<string, unknown> = {
+        submission_id: row.id,
+        form_version: row.formVersion.versionNumber,
+        division: row.division.name,
+        lobby: row.lobby?.name ?? '',
+        submitted_by: row.submittedBy.loginId || row.submittedBy.name,
+        submitted_at: formatCellDate(row.submittedAt),
+        status: row.status,
+      };
+      for (const key of fieldMeta.keys()) {
+        out[`f_${key}`] = answerDisplay(answers[key]);
+      }
+      return out;
+    });
+    sheets.push({
+      key: `form_${formRows[0].formId}`,
+      name: formName,
+      columns: [...fixed, ...dynamic],
+      rows: sheetRows,
+    });
+  }
+  return sheets;
+}
+
+async function buildSubmissionsWorkbook(actor: Actor, filter: SubmissionFilter) {
+  const rows = await loadExportRows(actor, filter);
+  const exportedAt = new Date();
+  const filename = buildSubmissionsFilename(filter, exportedAt);
+  const sheets = buildFormSheets(rows);
+  const filters = {
+    search: filter.search ?? null,
+    status: filter.status ?? null,
+    divisionId: filter.divisionId != null ? String(filter.divisionId) : null,
+    lobbyId: filter.lobbyId != null ? String(filter.lobbyId) : null,
+    formId: filter.formId != null ? String(filter.formId) : null,
+    registerId: filter.registerId != null ? String(filter.registerId) : null,
+    dateFrom: filter.dateFrom ?? null,
+    dateTo: filter.dateTo ?? null,
+  };
+  return { rows, exportedAt, filename, sheets, filters };
+}
+
+export async function previewSubmissionsExport(actor: Actor, filter: SubmissionFilter) {
+  const data = await buildSubmissionsWorkbook(actor, filter);
+  return buildWorkbookPreview({
+    title: 'Form submissions analytics export',
+    filename: data.filename,
+    exportedAt: data.exportedAt,
+    filters: data.filters,
+    sheets: data.sheets,
+  });
+}
+
+export async function exportSubmissionsXlsx(actor: Actor, filter: SubmissionFilter) {
+  const data = await buildSubmissionsWorkbook(actor, filter);
+  const buffer = await writeWorkbookBuffer({
+    title: 'Form submissions analytics export',
+    creator: 'RMO Forms analytics',
+    exportedAt: data.exportedAt,
+    infoRows: [
+      { field: 'export_generated_at', value: formatCellDate(data.exportedAt) },
+      { field: 'workbook_title', value: 'Form submissions analytics export' },
+      { field: 'filter_from_date', value: data.filters.dateFrom || '' },
+      { field: 'filter_to_date', value: data.filters.dateTo || '' },
+      { field: 'filter_search', value: data.filters.search || '' },
+      { field: 'filter_status', value: data.filters.status || '' },
+      { field: 'filter_form_id', value: data.filters.formId || '' },
+      { field: 'filter_register_id', value: data.filters.registerId || '' },
+      { field: 'row_count', value: data.rows.length },
+    ],
+    sheets: data.sheets,
+  });
+  await recordAudit(actor.id, 'submission.exported', 'submission', null, {
+    divisionId: actor.rmoRole === 'SYSTEM_ADMIN' ? filter.divisionId ?? null : actor.homeDivisionId,
+    rowCount: data.rows.length,
+    formId: filter.formId ?? null,
+    registerId: filter.registerId ?? null,
+    lobbyId: filter.lobbyId ?? null,
+    status: filter.status ?? null,
+    dateFrom: filter.dateFrom ?? null,
+    dateTo: filter.dateTo ?? null,
+    format: 'xlsx',
+  });
+  return { buffer, filename: data.filename };
 }

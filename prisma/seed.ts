@@ -2,6 +2,7 @@ import 'dotenv/config';
 import { PrismaPg } from '@prisma/adapter-pg';
 import bcrypt from 'bcryptjs';
 import { PrismaClient } from '../src/lib/prisma/generated/client';
+import { seedClientFormsForDivision } from '../src/services/internal/rmo/client-registers';
 
 const DEV_EMAIL = 'vikramsinhparmar2812@gmail.com';
 const DEV_PASSWORD = 'Vikram@2812';
@@ -104,6 +105,22 @@ async function main() {
       where: { id: form.id },
       data: { currentVersionId: version.id },
     });
+  }
+
+  const firstDivision = await prisma.division.findFirst({
+    orderBy: { id: 'asc' },
+    select: { id: true, name: true },
+  });
+  if (admin && firstDivision) {
+    const seeded = await seedClientFormsForDivision({
+      divisionId: firstDivision.id,
+      createdById: admin.id,
+    });
+    const created = seeded.results.filter(row => row.created).length;
+    console.log(
+      `Seeded client forms for ${firstDivision.name}: ${seeded.results.length} forms ` +
+        `(${created} new). Registers can be created in a later step.`,
+    );
   }
 
   console.log(`Seeded local system admin ${DEV_LOGIN_ID} / ${DEV_EMAIL}`);

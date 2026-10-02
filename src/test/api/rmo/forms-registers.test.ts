@@ -3,13 +3,23 @@ import { GET as getForm, PATCH as updateForm } from '@/app/api/admin/forms/[id]/
 import { POST as publishForm } from '@/app/api/admin/forms/[id]/publish/route';
 import { GET as listForms, POST as createForm } from '@/app/api/admin/forms/route';
 import { GET as getRegister, PATCH as updateRegister } from '@/app/api/admin/registers/[id]/route';
+import { GET as listRegisterEntries } from '@/app/api/admin/registers/[id]/entries/route';
+import { GET as exportRegisterXlsx } from '@/app/api/admin/registers/[id]/export/route';
+import { GET as previewRegisterExport } from '@/app/api/admin/registers/[id]/export/preview/route';
+import {
+  GET as listRegisterFields,
+  PUT as replaceRegisterFields,
+} from '@/app/api/admin/registers/[id]/fields/route';
 import { GET as listRegisters, POST as createRegister } from '@/app/api/admin/registers/route';
 import { GET as analyticsForms } from '@/app/api/analytics/forms/route';
 import { GET as analyticsLobbies } from '@/app/api/analytics/lobbies/route';
 import { GET as analyticsSubmissions } from '@/app/api/analytics/submissions/route';
 import { GET as exportSubmissions } from '@/app/api/submissions/export/route';
+import { GET as previewSubmissionsExport } from '@/app/api/submissions/export/preview/route';
+import { GET as exportSubmissionsXlsx } from '@/app/api/submissions/export/xlsx/route';
 import { GET as getSubmission, PATCH as updateSubmission } from '@/app/api/submissions/[id]/route';
 import { GET as listSubmissions, POST as createSubmission } from '@/app/api/submissions/route';
+import { seedClientRegistersForDivision } from '@/services/internal/rmo/client-registers';
 import { POST as createDivision } from '@/app/api/admin/divisions/route';
 import { POST as createLobby } from '@/app/api/admin/lobbies/route';
 import { POST as createZone } from '@/app/api/admin/zones/route';
@@ -492,5 +502,166 @@ describe('Forms, registers, and submissions', () => {
     const leaked = JSON.stringify(await testPrisma.auditLog.findMany());
     expect(leaked).not.toContain(PASSWORD);
     expect(leaked).not.toContain('test-token');
+  });
+
+  test('register field mapping, entries visibility, and xlsx export stay division-scoped', async () => {
+    const org = await world();
+    const form = (await jsonOf(await createForm(await requestFor(org.divisionAdmin, '/api/admin/forms', 'POST', {
+      name: 'Duty Form',
+      schema: {
+        sections: ['General'],
+        fields: [
+          {
+            id: 'train_no',
+            key: 'train_no',
+            label: 'Train no',
+            type: 'TEXT',
+            required: false,
+            placeholder: '',
+            helpText: '',
+            options: [],
+            validation: {},
+            displayOrder: 0,
+            section: 'General',
+          },
+          {
+            id: 'detonator_no',
+            key: 'detonator_no',
+            label: 'Detonator no',
+            type: 'TEXT',
+            required: false,
+            placeholder: '',
+            helpText: '',
+            options: [],
+            validation: {},
+            displayOrder: 1,
+            section: 'General',
+          },
+        ],
+      },
+    })))).data;
+    await publishForm(
+      await requestFor(org.divisionAdmin, `/api/admin/forms/${form.id}/publish`, 'POST'),
+      context(form.id),
+    );
+    await testPrisma.formAssignment.create({
+      data: { formId: form.id, divisionId: org.ahmedabad.id, lobbyId: org.lobbyA1.id },
+    });
+
+    const register = (await jsonOf(await createRegister(await requestFor(org.divisionAdmin, '/api/admin/registers', 'POST', {
+      name: 'Detonator Book',
+      formId: form.id,
+    })))).data;
+
+    expect((await replaceRegisterFields(
+      await requestFor(org.divisionAdmin, `/api/admin/registers/${register.id}/fields`, 'PUT', {
+        fields: [{ fieldKey: 'missing_key', isKeyField: true }],
+      }),
+      context(register.id),
+    )).status).toBe(400);
+
+    const mapped = await jsonOf(await replaceRegisterFields(
+      await requestFor(org.divisionAdmin, `/api/admin/registers/${register.id}/fields`, 'PUT', {
+        fields: [
+          { fieldKey: 'train_no', sortOrder: 0, isKeyField: false },
+          { fieldKey: 'detonator_no', sortOrder: 1, isKeyField: true, columnLabel: 'Detonator' },
+        ],
+      }),
+      context(register.id),
+    ));
+    expect(mapped.data.fields).toHaveLength(2);
+    expect(mapped.data.fields[1].columnLabel).toBe('Detonator');
+
+    const fields = await jsonOf(await listRegisterFields(
+      await requestFor(org.divisionAdmin, `/api/admin/registers/${register.id}/fields`, 'GET'),
+      context(register.id),
+    ));
+    expect(fields.data.availableFields.map((item: { key: string }) => item.key)).toEqual(
+      expect.arrayContaining(['train_no', 'detonator_no']),
+    );
+
+    await createSubmission(await requestFor(org.crewA, '/api/submissions', 'POST', {
+      formId: form.id,
+      answers: { train_no: '12934' },
+    }));
+    const withKey = await jsonOf(await createSubmission(await requestFor(org.crewB, '/api/submissions', 'POST', {
+      formId: form.id,
+      answers: { train_no: '19019', detonator_no: 'D-9' },
+    })));
+
+    const entries = await jsonOf(await listRegisterEntries(
+      await requestFor(org.divisionAdmin, `/api/admin/registers/${register.id}/entries`, 'GET'),
+      context(register.id),
+    ));
+    expect(entries.data.total).toBe(1);
+    expect(entries.data.entries[0].submissionId).toBe(withKey.data.id);
+    expect(entries.data.entries[0].values.detonator_no).toBe('D-9');
+
+    const suratRegister = (await jsonOf(await createRegister(await requestFor(org.suratAdmin, '/api/admin/registers', 'POST', {
+      name: 'Surat Book',
+      formId: (await jsonOf(await createForm(await requestFor(org.suratAdmin, '/api/admin/forms', 'POST', {
+        name: 'Surat Duty',
+        schema: {
+          sections: ['General'],
+          fields: [
+            {
+              id: 'detonator_no',
+              key: 'detonator_no',
+              label: 'Detonator no',
+              type: 'TEXT',
+              required: false,
+              placeholder: '',
+              helpText: '',
+              options: [],
+              validation: {},
+              displayOrder: 0,
+              section: 'General',
+            },
+          ],
+        },
+      })))).data.id,
+    })))).data;
+    const suratFormId = suratRegister.formId;
+    await publishForm(
+      await requestFor(org.suratAdmin, `/api/admin/forms/${suratFormId}/publish`, 'POST'),
+      context(suratFormId),
+    );
+    expect((await listRegisterEntries(
+      await requestFor(org.divisionAdmin, `/api/admin/registers/${suratRegister.id}/entries`, 'GET'),
+      context(suratRegister.id),
+    )).status).toBe(403);
+
+    const preview = await jsonOf(await previewRegisterExport(
+      await requestFor(org.divisionAdmin, `/api/admin/registers/${register.id}/export/preview`, 'GET'),
+      context(register.id),
+    ));
+    expect(preview.data.workbook.sheets[0].row_count).toBe(1);
+    expect(preview.data.workbook.sheets[0].rows[0].f_detonator_no).toBe('D-9');
+
+    const xlsx = await exportRegisterXlsx(
+      await requestFor(org.divisionAdmin, `/api/admin/registers/${register.id}/export`, 'GET'),
+      context(register.id),
+    );
+    expect(xlsx.status).toBe(200);
+    expect(xlsx.headers.get('content-type')).toContain('spreadsheetml');
+    expect((await xlsx.arrayBuffer()).byteLength).toBeGreaterThan(100);
+
+    const submissionsPreview = await jsonOf(await previewSubmissionsExport(
+      await requestFor(org.divisionAdmin, '/api/submissions/export/preview', 'GET'),
+    ));
+    expect(submissionsPreview.data.workbook.sheets.length).toBeGreaterThanOrEqual(1);
+    const submissionsXlsx = await exportSubmissionsXlsx(
+      await requestFor(org.divisionAdmin, '/api/submissions/export/xlsx', 'GET'),
+    );
+    expect(submissionsXlsx.status).toBe(200);
+    expect(submissionsXlsx.headers.get('content-type')).toContain('spreadsheetml');
+
+    const seeded = await seedClientRegistersForDivision({
+      divisionId: org.ahmedabad.id,
+      createdById: org.divisionAdmin.id,
+    });
+    expect(seeded.forms).toHaveLength(6);
+    expect(seeded.results).toHaveLength(6);
+    expect(seeded.results.every(item => item.mapped > 0)).toBe(true);
   });
 });

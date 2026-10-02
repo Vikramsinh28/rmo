@@ -96,6 +96,7 @@ export const ALL_ROUTES: RouteConfig[] = [
   { path: '/devices', isPublic: false, accessTo: { GET: [...DEVICE_ADMIN] } },
   { path: '/lobbies/[id]', isPublic: false, accessTo: { GET: [...DIVISION_READ] } },
   { path: '/registers', isPublic: false, accessTo: { GET: [...FORM_READ] } },
+  { path: '/registers/[id]', isPublic: false, accessTo: { GET: [...FORM_READ] } },
   { path: '/submissions', isPublic: false, accessTo: { GET: [...FORM_USE] } },
   { path: '/submissions/[id]', isPublic: false, accessTo: { GET: [...FORM_USE] } },
   { path: '/analytics', isPublic: false, accessTo: { GET: [...FORM_ADMIN] } },
@@ -238,6 +239,11 @@ export const ALL_ROUTES: RouteConfig[] = [
     accessTo: { GET: [...FORM_USE], POST: [...FORM_ADMIN] },
   },
   {
+    path: '/api/admin/forms/seed-client',
+    isPublic: false,
+    accessTo: { POST: [...FORM_ADMIN] },
+  },
+  {
     path: '/api/admin/forms/[id]',
     isPublic: false,
     accessTo: { GET: [...FORM_USE], PATCH: [...FORM_ADMIN] },
@@ -268,7 +274,37 @@ export const ALL_ROUTES: RouteConfig[] = [
     accessTo: { GET: [...FORM_READ], PATCH: [...FORM_ADMIN] },
   },
   {
+    path: '/api/admin/registers/[id]/fields',
+    isPublic: false,
+    accessTo: { GET: [...FORM_READ], PUT: [...FORM_ADMIN] },
+  },
+  {
+    path: '/api/admin/registers/[id]/entries',
+    isPublic: false,
+    accessTo: { GET: [...FORM_READ] },
+  },
+  {
+    path: '/api/admin/registers/[id]/export',
+    isPublic: false,
+    accessTo: { GET: [...FORM_ADMIN] },
+  },
+  {
+    path: '/api/admin/registers/[id]/export/preview',
+    isPublic: false,
+    accessTo: { GET: [...FORM_ADMIN] },
+  },
+  {
     path: '/api/submissions/export',
+    isPublic: false,
+    accessTo: { GET: [...FORM_ADMIN] },
+  },
+  {
+    path: '/api/submissions/export/xlsx',
+    isPublic: false,
+    accessTo: { GET: [...FORM_ADMIN] },
+  },
+  {
+    path: '/api/submissions/export/preview',
     isPublic: false,
     accessTo: { GET: [...FORM_ADMIN] },
   },
