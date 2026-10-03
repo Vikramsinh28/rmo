@@ -1,4 +1,5 @@
 import { generateJWT, getAuthUser, setAuthCookie } from '@/lib/auth/jwt';
+import { prisma } from '@/lib/prisma';
 import { toSessionClaims } from '@/lib/rmo/session-claims';
 import { NextRequest } from 'next/server';
 import { internalServerErrorResponse, successResponse, unauthorizedResponse } from '@/lib/utils';
@@ -19,6 +20,13 @@ export async function GET(request: NextRequest) {
       return unauthorizedResponse();
     }
 
+    const crewType = user.crewTypeId
+      ? await prisma.crewType.findUnique({
+          where: { id: user.crewTypeId },
+          select: { id: true, code: true, name: true, isActive: true },
+        })
+      : null;
+
     const serializableUser = {
       id: user.id,
       email: user.email,
@@ -32,6 +40,8 @@ export async function GET(request: NextRequest) {
       homeZoneId: user.homeZoneId,
       homeDivisionId: user.homeDivisionId,
       homeLobbyId: user.homeLobbyId,
+      crewTypeId: user.crewTypeId,
+      crewType,
     };
 
     const token = await generateJWT(toSessionClaims(user));

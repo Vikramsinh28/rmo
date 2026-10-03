@@ -2,6 +2,7 @@
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { formatIstDisplay } from '@/lib/rmo/datetime';
 import { useEffect, useState } from 'react';
 import { apiRequest } from './api';
 
@@ -74,7 +75,7 @@ export function AuditScreen() {
             <tbody>
               {page.items.map(row => (
                 <tr key={row.id} className="border-b last:border-0">
-                  <td className="px-4 py-3 text-xs">{new Date(row.createdAt).toLocaleString()}</td>
+                  <td className="px-4 py-3 text-xs">{formatIstDisplay(row.createdAt)}</td>
                   <td className="px-4 py-3">{row.actor?.name || 'Unknown'}</td>
                   <td className="px-4 py-3">{row.action}</td>
                   <td className="px-4 py-3 text-xs text-muted-foreground">

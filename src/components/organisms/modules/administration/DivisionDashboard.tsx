@@ -1,6 +1,7 @@
 'use client';
 
 import { Skeleton } from '@/components/ui/skeleton';
+import { formatIstDisplay } from '@/lib/rmo/datetime';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { apiRequest } from './api';
@@ -123,7 +124,7 @@ export function DivisionDashboard() {
                     </span>
                   </span>
                   <time className="text-xs text-muted-foreground">
-                    {new Date(item.createdAt).toLocaleString()}
+                    {formatIstDisplay(item.createdAt)}
                   </time>
                 </li>
               ))}

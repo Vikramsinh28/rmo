@@ -170,6 +170,12 @@ describe('Forms, registers, and submissions', () => {
         homeDivisionId: surat.id,
       },
     });
+    const alp = await testPrisma.crewType.create({
+      data: { code: 'ALP', name: 'ALP', sortOrder: 1, isActive: true },
+    });
+    const signOn = await testPrisma.dutyType.create({
+      data: { code: 'SIGN_ON', name: 'Sign On', sortOrder: 1, isActive: true },
+    });
     const lobbyUser = await testPrisma.user.create({
       data: {
         email: 'lobby-a1@example.com',
@@ -196,6 +202,7 @@ describe('Forms, registers, and submissions', () => {
         homeZoneId: zone.id,
         homeDivisionId: ahmedabad.id,
         homeLobbyId: lobbyA1.id,
+        crewTypeId: alp.id,
       },
     });
     const crewB = await testPrisma.user.create({
@@ -210,6 +217,7 @@ describe('Forms, registers, and submissions', () => {
         homeZoneId: zone.id,
         homeDivisionId: ahmedabad.id,
         homeLobbyId: lobbyA1.id,
+        crewTypeId: alp.id,
       },
     });
     return {
@@ -225,6 +233,8 @@ describe('Forms, registers, and submissions', () => {
       lobbyUser,
       crewA,
       crewB,
+      alp,
+      signOn,
     };
   }
 
@@ -249,14 +259,52 @@ describe('Forms, registers, and submissions', () => {
     return published.data;
   }
 
+  async function publishCrewForm(
+    actor: Awaited<ReturnType<typeof world>>['divisionAdmin'],
+    name: string,
+    crewTypeId: number,
+    dutyTypeId: number,
+  ) {
+    const created = await jsonOf(await createForm(await requestFor(actor, '/api/admin/forms', 'POST', {
+      name,
+      description: `${name} description`,
+      schema,
+      crewTypeId,
+      dutyTypeId,
+    })));
+    expect(created.success).toBe(true);
+    const published = await jsonOf(await publishForm(
+      await requestFor(actor, `/api/admin/forms/${created.data.id}/publish`, 'POST'),
+      context(created.data.id),
+    ));
+    expect(published.success).toBe(true);
+    return published.data;
+  }
+
   it('isolates Ahmedabad records from Surat and keeps submission history on the original version', async () => {
     const org = await world();
     const formA1 = await publishNamed(org.divisionAdmin, 'Form A1', org.ahmedabad.id, org.lobbyA1.id);
     const formA2 = await publishNamed(org.divisionAdmin, 'Form A2', org.ahmedabad.id, org.lobbyA2.id);
     const formB1 = await publishNamed(org.suratAdmin, 'Form B1', org.surat.id, org.lobbyB1.id);
+    const crewFormA = await publishCrewForm(
+      org.divisionAdmin,
+      'ALP Sign On ADI',
+      org.alp.id,
+      org.signOn.id,
+    );
+    const crewFormB = await publishCrewForm(
+      org.suratAdmin,
+      'ALP Sign On ST',
+      org.alp.id,
+      org.signOn.id,
+    );
 
     const ahmedabadForms = await jsonOf(await listForms(await requestFor(org.divisionAdmin, '/api/admin/forms', 'GET')));
-    expect(ahmedabadForms.data.items.map((item: { name: string }) => item.name).sort()).toEqual(['Form A1', 'Form A2']);
+    expect(ahmedabadForms.data.items.map((item: { name: string }) => item.name).sort()).toEqual([
+      'ALP Sign On ADI',
+      'Form A1',
+      'Form A2',
+    ]);
     const suratFormRead = await getForm(
       await requestFor(org.divisionAdmin, `/api/admin/forms/${formB1.id}`, 'GET'),
       context(formB1.id),
@@ -283,13 +331,16 @@ describe('Forms, registers, and submissions', () => {
     expect(outsideCreate.status).toBe(403);
 
     const allForms = await jsonOf(await listForms(await requestFor(org.admin, '/api/admin/forms', 'GET')));
-    expect(allForms.data.items).toHaveLength(3);
+    expect(allForms.data.items).toHaveLength(5);
     const filtered = await jsonOf(await listForms(await requestFor(
       org.admin,
       `/api/admin/forms?divisionId=${org.surat.id}`,
       'GET',
     )));
-    expect(filtered.data.items.map((item: { name: string }) => item.name)).toEqual(['Form B1']);
+    expect(filtered.data.items.map((item: { name: string }) => item.name).sort()).toEqual([
+      'ALP Sign On ST',
+      'Form B1',
+    ]);
 
     const registerA = await jsonOf(await createRegister(await requestFor(org.divisionAdmin, '/api/admin/registers', 'POST', {
       name: 'Register A',
@@ -330,11 +381,13 @@ describe('Forms, registers, and submissions', () => {
     }))).status).toBe(403);
 
     const crewSubmission = await jsonOf(await createSubmission(await requestFor(org.crewA, '/api/submissions', 'POST', {
-      formId: formA1.id,
+      formId: crewFormA.id,
+      dutyTypeId: org.signOn.id,
       answers: { crew_name: 'Crew A' },
     })));
     const otherCrew = await jsonOf(await createSubmission(await requestFor(org.crewB, '/api/submissions', 'POST', {
-      formId: formA1.id,
+      formId: crewFormA.id,
+      dutyTypeId: org.signOn.id,
       answers: { crew_name: 'Crew B' },
     })));
     await createSubmission(await requestFor(org.suratAdmin, '/api/submissions', 'POST', {
@@ -353,10 +406,12 @@ describe('Forms, registers, and submissions', () => {
         homeZoneId: org.zone.id,
         homeDivisionId: org.surat.id,
         homeLobbyId: org.lobbyB1.id,
+        crewTypeId: org.alp.id,
       },
     });
     const suratSubmission = await jsonOf(await createSubmission(await requestFor(suratCrew, '/api/submissions', 'POST', {
-      formId: formB1.id,
+      formId: crewFormB.id,
+      dutyTypeId: org.signOn.id,
       answers: { crew_name: 'Surat crew' },
     })));
 
@@ -368,7 +423,8 @@ describe('Forms, registers, and submissions', () => {
       context(otherCrew.data.id),
     )).status).toBe(403);
     expect((await createSubmission(await requestFor(org.crewA, '/api/submissions', 'POST', {
-      formId: formA1.id,
+      formId: crewFormA.id,
+      dutyTypeId: org.signOn.id,
       answers: {},
     }))).status).toBe(400);
 
@@ -429,7 +485,7 @@ describe('Forms, registers, and submissions', () => {
       `/api/analytics/forms?${range}&divisionId=${org.surat.id}`,
       'GET',
     )));
-    expect(byForm.data.items.map((item: { name: string }) => item.name)).toEqual(['Form B1']);
+    expect(byForm.data.items.map((item: { name: string }) => item.name)).toEqual(['ALP Sign On ST']);
     const byLobby = await jsonOf(await analyticsLobbies(await requestFor(
       org.divisionAdmin,
       `/api/analytics/lobbies?${range}`,
@@ -580,11 +636,11 @@ describe('Forms, registers, and submissions', () => {
       expect.arrayContaining(['train_no', 'detonator_no']),
     );
 
-    await createSubmission(await requestFor(org.crewA, '/api/submissions', 'POST', {
+    await createSubmission(await requestFor(org.lobbyUser, '/api/submissions', 'POST', {
       formId: form.id,
       answers: { train_no: '12934' },
     }));
-    const withKey = await jsonOf(await createSubmission(await requestFor(org.crewB, '/api/submissions', 'POST', {
+    const withKey = await jsonOf(await createSubmission(await requestFor(org.lobbyUser, '/api/submissions', 'POST', {
       formId: form.id,
       answers: { train_no: '19019', detonator_no: 'D-9' },
     })));

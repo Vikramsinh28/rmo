@@ -3,6 +3,7 @@
 import { Input } from '@/components/ui/input';
 import { apiRequest } from '@/components/organisms/modules/administration/api';
 import { EmptyState, StatusPill, TableSkeleton } from '@/components/organisms/modules/forms/form-ui';
+import { formatIstDisplay } from '@/lib/rmo/datetime';
 import { useAuthStore } from '@/store/auth';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
@@ -129,7 +130,7 @@ export function EnrollmentListScreen() {
                       <span className="block text-xs text-muted-foreground">{item.requestedDivision.name}</span>
                     ) : null}
                   </td>
-                  <td className="px-4 py-3">{new Date(item.createdAt).toLocaleString()}</td>
+                  <td className="px-4 py-3">{formatIstDisplay(item.createdAt)}</td>
                   <td className="px-4 py-3"><StatusPill status={item.status} /></td>
                   <td className="px-4 py-3">
                     <Link className="font-medium underline" href={`/enrollments/${item.id}`}>Review</Link>

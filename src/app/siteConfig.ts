@@ -8,6 +8,7 @@ export const siteConfig = {
     zones: '/zones',
     divisions: '/divisions',
     lobbies: '/lobbies',
+    lobbyQr: '/lobby-qr',
     users: '/users',
     roles: '/roles',
     audit: '/audit',

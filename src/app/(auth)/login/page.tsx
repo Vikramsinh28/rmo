@@ -40,6 +40,8 @@ export default function LoginPage() {
           homeZoneId: user.homeZoneId,
           homeDivisionId: user.homeDivisionId,
           homeLobbyId: user.homeLobbyId,
+          crewTypeId: user.crewTypeId,
+          crewType: user.crewType,
           isOnboarded: user.isOnboarded ?? true,
         });
       toast.success('Signed in');

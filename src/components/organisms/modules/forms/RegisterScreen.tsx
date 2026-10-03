@@ -11,6 +11,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { apiRequest } from '@/components/organisms/modules/administration/api';
+import { formatIstDisplay } from '@/lib/rmo/datetime';
 import { useAuthStore } from '@/store/auth';
 import Link from 'next/link';
 import { FormEvent, useEffect, useState } from 'react';
@@ -22,9 +23,12 @@ interface RegisterRow {
   name: string;
   description: string;
   status: string;
-  formId: number;
+  formId: number | null;
+  questionCount?: number;
+  createdAt?: string;
+  updatedAt?: string;
   division: { name: string };
-  form: { name: string };
+  form: { name: string } | null;
 }
 
 interface Option {
@@ -36,7 +40,6 @@ export function RegisterScreen() {
   const role = useAuthStore(state => state.user?.rmoRole);
   const canEdit = role === 'SYSTEM_ADMIN' || role === 'DIVISION_ADMIN';
   const [items, setItems] = useState<RegisterRow[]>([]);
-  const [forms, setForms] = useState<Option[]>([]);
   const [divisions, setDivisions] = useState<Option[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -44,7 +47,7 @@ export function RegisterScreen() {
   const [divisionId, setDivisionId] = useState('');
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<RegisterRow | null>(null);
-  const [form, setForm] = useState({ name: '', description: '', formId: '', divisionId: '' });
+  const [form, setForm] = useState({ name: '', description: '', divisionId: '' });
 
   const load = () => {
     setLoading(true);
@@ -66,9 +69,6 @@ export function RegisterScreen() {
   }, [search, divisionId]);
 
   useEffect(() => {
-    apiRequest<{ items: Option[] }>('/api/admin/forms?pageSize=50')
-      .then(result => setForms(result.items))
-      .catch(() => setForms([]));
     if (role === 'SYSTEM_ADMIN') {
       apiRequest<{ items: Option[] }>('/api/admin/divisions?pageSize=50')
         .then(result => setDivisions(result.items))
@@ -81,7 +81,6 @@ export function RegisterScreen() {
     const payload = {
       name: form.name,
       description: form.description,
-      formId: Number(form.formId),
       ...(role === 'SYSTEM_ADMIN' && !editing ? { divisionId: Number(form.divisionId) } : {}),
     };
     try {
@@ -124,7 +123,7 @@ export function RegisterScreen() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Registers</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            A register is a division book whose columns map to form field keys.
+            Configure register views from questions across staff types, duty types, and forms.
           </p>
         </div>
         {canEdit ? (
@@ -132,7 +131,7 @@ export function RegisterScreen() {
             className="h-9"
             onClick={() => {
               setEditing(null);
-              setForm({ name: '', description: '', formId: '', divisionId: '' });
+              setForm({ name: '', description: '', divisionId: '' });
               setOpen(true);
             }}
           >
@@ -140,19 +139,35 @@ export function RegisterScreen() {
           </Button>
         ) : null}
       </div>
-      <div className="grid gap-2 md:grid-cols-2">
-        <Input aria-label="Search registers" placeholder="Search registers" value={search} onChange={event => setSearch(event.target.value)} />
+
+      <div className="grid gap-2 md:grid-cols-3">
+        <Input
+          aria-label="Search registers"
+          placeholder="Search registers"
+          value={search}
+          onChange={event => setSearch(event.target.value)}
+        />
         {role === 'SYSTEM_ADMIN' ? (
-          <select aria-label="Division" className="h-9 rounded-md border bg-background px-3 text-sm" value={divisionId} onChange={event => setDivisionId(event.target.value)}>
+          <select
+            aria-label="Division"
+            className="h-9 rounded-md border bg-background px-3 text-sm"
+            value={divisionId}
+            onChange={event => setDivisionId(event.target.value)}
+          >
             <option value="">All divisions</option>
-            {divisions.map(division => <option key={division.id} value={division.id}>{division.name}</option>)}
+            {divisions.map(item => (
+              <option key={item.id} value={item.id}>
+                {item.name}
+              </option>
+            ))}
           </select>
         ) : null}
       </div>
+
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
       {loading ? <TableSkeleton /> : null}
       {!loading && items.length === 0 ? (
-        <EmptyState title="No registers" body="Create a register to follow submissions for a form in this division." />
+        <EmptyState title="No registers" body="Create a register, then map questions from published forms." />
       ) : null}
       {!loading && items.length > 0 ? (
         <div className="overflow-hidden rounded-xl border bg-card">
@@ -160,30 +175,60 @@ export function RegisterScreen() {
             <thead className="border-b bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
               <tr>
                 <th className="px-4 py-3 font-medium">Register</th>
-                <th className="px-4 py-3 font-medium">Form</th>
                 <th className="px-4 py-3 font-medium">Division</th>
+                <th className="px-4 py-3 font-medium">Questions</th>
                 <th className="px-4 py-3 font-medium">Status</th>
+                <th className="px-4 py-3 font-medium">Updated</th>
                 <th className="px-4 py-3 font-medium">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {items.map(item => (
-                <tr key={item.id} className="border-b last:border-0">
+              {items.map(row => (
+                <tr key={row.id} className="border-b last:border-0">
                   <td className="px-4 py-3">
-                    <p className="font-medium">{item.name}</p>
-                    <p className="text-xs text-muted-foreground">{item.description}</p>
+                    <p className="font-medium">{row.name}</p>
+                    <p className="text-xs text-muted-foreground">{row.description || '—'}</p>
                   </td>
-                  <td className="px-4 py-3">{item.form.name}</td>
-                  <td className="px-4 py-3">{item.division.name}</td>
-                  <td className="px-4 py-3"><StatusPill status={item.status} /></td>
+                  <td className="px-4 py-3">{row.division.name}</td>
+                  <td className="px-4 py-3 tabular-nums">{row.questionCount ?? 0}</td>
                   <td className="px-4 py-3">
-                    <div className="flex flex-wrap gap-3">
-                      <Link className="font-medium underline" href={`/registers/${item.id}`}>Open book</Link>
-                      <Link className="underline" href={`/submissions?registerId=${item.id}`}>Submissions</Link>
+                    <StatusPill status={row.status} />
+                  </td>
+                  <td className="px-4 py-3 text-xs text-muted-foreground">
+                    {row.updatedAt ? formatIstDisplay(row.updatedAt) : '—'}
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex flex-wrap gap-2">
+                      <Link className="font-medium underline" href={`/registers/${row.id}`}>
+                        Open
+                      </Link>
                       {canEdit ? (
-                        <button type="button" className="underline" onClick={() => setStatus(item, item.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE')}>
-                          {item.status === 'ACTIVE' ? 'Disable' : 'Enable'}
-                        </button>
+                        <>
+                          <button
+                            type="button"
+                            className="underline"
+                            onClick={() => {
+                              setEditing(row);
+                              setForm({
+                                name: row.name,
+                                description: row.description,
+                                divisionId: '',
+                              });
+                              setOpen(true);
+                            }}
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            className="underline"
+                            onClick={() =>
+                              setStatus(row, row.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE')
+                            }
+                          >
+                            {row.status === 'ACTIVE' ? 'Disable' : 'Enable'}
+                          </button>
+                        </>
                       ) : null}
                     </div>
                   </td>
@@ -193,36 +238,61 @@ export function RegisterScreen() {
           </table>
         </div>
       ) : null}
+
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
-          <DialogHeader><DialogTitle>{editing ? 'Edit register' : 'New register'}</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>{editing ? 'Edit register' : 'Create register'}</DialogTitle>
+          </DialogHeader>
           <form className="space-y-3" onSubmit={save}>
-            <div>
-              <Label htmlFor="register-name">Name</Label>
-              <Input id="register-name" value={form.name} onChange={event => setForm(current => ({ ...current, name: event.target.value }))} />
+            <div className="space-y-1.5">
+              <Label htmlFor="name">Name</Label>
+              <Input
+                id="name"
+                value={form.name}
+                onChange={event => setForm(current => ({ ...current, name: event.target.value }))}
+                required
+              />
             </div>
-            <div>
-              <Label htmlFor="register-description">Description</Label>
-              <Input id="register-description" value={form.description} onChange={event => setForm(current => ({ ...current, description: event.target.value }))} />
+            <div className="space-y-1.5">
+              <Label htmlFor="description">Description</Label>
+              <Input
+                id="description"
+                value={form.description}
+                onChange={event =>
+                  setForm(current => ({ ...current, description: event.target.value }))
+                }
+              />
             </div>
             {role === 'SYSTEM_ADMIN' && !editing ? (
-              <div>
-                <Label htmlFor="register-division">Division</Label>
-                <select id="register-division" className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.divisionId} onChange={event => setForm(current => ({ ...current, divisionId: event.target.value }))}>
+              <div className="space-y-1.5">
+                <Label htmlFor="division">Division</Label>
+                <select
+                  id="division"
+                  className="h-9 w-full rounded-md border bg-background px-3 text-sm"
+                  value={form.divisionId}
+                  onChange={event =>
+                    setForm(current => ({ ...current, divisionId: event.target.value }))
+                  }
+                  required
+                >
                   <option value="">Select division</option>
-                  {divisions.map(division => <option key={division.id} value={division.id}>{division.name}</option>)}
+                  {divisions.map(item => (
+                    <option key={item.id} value={item.id}>
+                      {item.name}
+                    </option>
+                  ))}
                 </select>
               </div>
             ) : null}
-            <div>
-              <Label htmlFor="register-form">Form</Label>
-              <select id="register-form" className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.formId} onChange={event => setForm(current => ({ ...current, formId: event.target.value }))}>
-                <option value="">Select form</option>
-                {forms.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
-              </select>
-            </div>
+            <p className="text-xs text-muted-foreground">
+              Map questions from multiple staff types and duty types after creating the register.
+            </p>
             <DialogFooter>
-              <Button type="submit" className="h-9">Save</Button>
+              <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit">{editing ? 'Save' : 'Create'}</Button>
             </DialogFooter>
           </form>
         </DialogContent>

@@ -17,6 +17,135 @@ function assertLocalDevDatabase(url: string) {
   }
 }
 
+async function seedCrewAndDutyTypes(prisma: PrismaClient) {
+  const crewDefaults = [
+    { code: 'ALP', name: 'ALP', sortOrder: 1 },
+    { code: 'LP', name: 'LP', sortOrder: 2 },
+    { code: 'TM', name: 'TM', sortOrder: 3 },
+  ];
+  for (const row of crewDefaults) {
+    await prisma.crewType.upsert({
+      where: { code: row.code },
+      create: { ...row, isActive: true },
+      update: { name: row.name, sortOrder: row.sortOrder, isActive: true },
+    });
+  }
+  const dutyDefaults = [
+    { code: 'SIGN_ON', name: 'Sign On', sortOrder: 1 },
+    { code: 'SIGN_OFF', name: 'Sign Off', sortOrder: 2 },
+  ];
+  for (const row of dutyDefaults) {
+    await prisma.dutyType.upsert({
+      where: { code: row.code },
+      create: { ...row, isActive: true },
+      update: { name: row.name, sortOrder: row.sortOrder, isActive: true },
+    });
+  }
+}
+
+async function seedDemoCrewForms(
+  prisma: PrismaClient,
+  adminId: number,
+  divisionId: number,
+) {
+  const alp = await prisma.crewType.findUnique({ where: { code: 'ALP' } });
+  const lp = await prisma.crewType.findUnique({ where: { code: 'LP' } });
+  const signOn = await prisma.dutyType.findUnique({ where: { code: 'SIGN_ON' } });
+  const signOff = await prisma.dutyType.findUnique({ where: { code: 'SIGN_OFF' } });
+  if (!alp || !lp || !signOn || !signOff) return;
+
+  const demos = [
+    {
+      name: 'ALP Sign On Form',
+      description: 'Duty checklist for ALP crew at sign on.',
+      crewTypeId: alp.id,
+      dutyTypeId: signOn.id,
+    },
+    {
+      name: 'ALP Sign Off Form',
+      description: 'Duty checklist for ALP crew at sign off.',
+      crewTypeId: alp.id,
+      dutyTypeId: signOff.id,
+    },
+    {
+      name: 'LP Sign On Form',
+      description: 'Duty checklist for LP crew at sign on.',
+      crewTypeId: lp.id,
+      dutyTypeId: signOn.id,
+    },
+  ];
+
+  for (const demo of demos) {
+    const existing = await prisma.form.findFirst({
+      where: {
+        divisionId,
+        crewTypeId: demo.crewTypeId,
+        dutyTypeId: demo.dutyTypeId,
+        purpose: 'GENERAL',
+      },
+    });
+    if (existing) continue;
+
+    const form = await prisma.form.create({
+      data: {
+        name: demo.name,
+        description: demo.description,
+        divisionId,
+        crewTypeId: demo.crewTypeId,
+        dutyTypeId: demo.dutyTypeId,
+        status: 'PUBLISHED',
+        purpose: 'GENERAL',
+        createdById: adminId,
+      },
+    });
+    const version = await prisma.formVersion.create({
+      data: {
+        formId: form.id,
+        versionNumber: 1,
+        status: 'PUBLISHED',
+        createdById: adminId,
+        schema: {
+          sections: ['Duty checklist'],
+          fields: [
+            {
+              id: 'remarks',
+              key: 'remarks',
+              label: 'Remarks',
+              type: 'TEXTAREA',
+              required: false,
+              placeholder: '',
+              helpText: '',
+              options: [],
+              validation: {},
+              displayOrder: 0,
+              section: 'Duty checklist',
+              registerId: null,
+            },
+            {
+              id: 'confirm_ready',
+              key: 'confirm_ready',
+              label: 'Confirm ready for duty',
+              type: 'YES_NO',
+              required: true,
+              placeholder: '',
+              helpText: '',
+              options: [],
+              validation: {},
+              displayOrder: 1,
+              section: 'Duty checklist',
+              registerId: null,
+            },
+          ],
+        },
+      },
+    });
+    await prisma.form.update({
+      where: { id: form.id },
+      data: { currentVersionId: version.id },
+    });
+  }
+}
+
 async function main() {
   const databaseUrl = process.env.POSTGRES_URL;
   if (!databaseUrl) {
@@ -27,6 +156,9 @@ async function main() {
   const prisma = new PrismaClient({
     adapter: new PrismaPg({ connectionString: databaseUrl }),
   });
+
+  await seedCrewAndDutyTypes(prisma);
+  console.log('Seeded crew types ALP/LP/TM and duty types SIGN_ON/SIGN_OFF');
 
   const password = await bcrypt.hash(DEV_PASSWORD, 10);
   const adminData = {
@@ -119,8 +251,10 @@ async function main() {
     const created = seeded.results.filter(row => row.created).length;
     console.log(
       `Seeded client forms for ${firstDivision.name}: ${seeded.results.length} forms ` +
-        `(${created} new). Registers can be created in a later step.`,
+        `(${created} new). Legacy register forms stay crewType/dutyType null (admin-only).`,
     );
+    await seedDemoCrewForms(prisma, admin.id, firstDivision.id);
+    console.log(`Seeded demo crew forms for ${firstDivision.name} (ALP Sign On/Off, LP Sign On).`);
   }
 
   console.log(`Seeded local system admin ${DEV_LOGIN_ID} / ${DEV_EMAIL}`);

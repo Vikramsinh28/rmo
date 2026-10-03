@@ -45,6 +45,8 @@ export const ALL_ROUTES: RouteConfig[] = [
   { path: '/', isPublic: true },
   { path: '/login', isPublic: true },
   { path: '/enroll', isPublic: true },
+  { path: '/public/crew-form/[token]', isPublic: true },
+  { path: '/lobby-qr', isPublic: false, accessTo: { GET: [...LOBBY_READ] } },
   { path: '/sitemap.xml', isPublic: true },
   { path: '/robots.txt', isPublic: true },
   { path: '/api/health', isPublic: true },
@@ -87,6 +89,37 @@ export const ALL_ROUTES: RouteConfig[] = [
     path: '/api/crew/face-enrollment',
     isPublic: false,
     accessTo: { GET: [CREW_USER], POST: [CREW_USER] },
+  },
+  {
+    path: '/api/crew/duty-types',
+    isPublic: false,
+    accessTo: { GET: [...FORM_USE] },
+  },
+  {
+    path: '/api/admin/crew-types',
+    isPublic: false,
+    accessTo: {
+      GET: [SYSTEM_ADMIN, SUPER_ADMIN, DIVISION_ADMIN, DIVISION_MONITOR],
+      POST: [SYSTEM_ADMIN, SUPER_ADMIN],
+    },
+  },
+  {
+    path: '/api/admin/crew-types/[id]',
+    isPublic: false,
+    accessTo: { PATCH: [SYSTEM_ADMIN, SUPER_ADMIN] },
+  },
+  {
+    path: '/api/admin/duty-types',
+    isPublic: false,
+    accessTo: {
+      GET: [SYSTEM_ADMIN, SUPER_ADMIN, DIVISION_ADMIN, DIVISION_MONITOR],
+      POST: [SYSTEM_ADMIN, SUPER_ADMIN],
+    },
+  },
+  {
+    path: '/api/admin/duty-types/[id]',
+    isPublic: false,
+    accessTo: { PATCH: [SYSTEM_ADMIN, SUPER_ADMIN] },
   },
   { path: '/monitoring', isPublic: false, accessTo: { GET: [...DIVISION_READ] } },
   { path: '/forms', isPublic: false, accessTo: { GET: [...FORM_USE] } },
@@ -269,6 +302,11 @@ export const ALL_ROUTES: RouteConfig[] = [
     accessTo: { GET: [...FORM_READ], POST: [...FORM_ADMIN] },
   },
   {
+    path: '/api/admin/registers/question-options',
+    isPublic: false,
+    accessTo: { GET: [...FORM_ADMIN] },
+  },
+  {
     path: '/api/admin/registers/[id]',
     isPublic: false,
     accessTo: { GET: [...FORM_READ], PATCH: [...FORM_ADMIN] },
@@ -276,12 +314,22 @@ export const ALL_ROUTES: RouteConfig[] = [
   {
     path: '/api/admin/registers/[id]/fields',
     isPublic: false,
-    accessTo: { GET: [...FORM_READ], PUT: [...FORM_ADMIN] },
+    accessTo: { GET: [...FORM_READ], PUT: [...FORM_ADMIN], POST: [...FORM_ADMIN] },
+  },
+  {
+    path: '/api/admin/registers/[id]/fields/[mappingId]',
+    isPublic: false,
+    accessTo: { PATCH: [...FORM_ADMIN], DELETE: [...FORM_ADMIN] },
   },
   {
     path: '/api/admin/registers/[id]/entries',
     isPublic: false,
     accessTo: { GET: [...FORM_READ] },
+  },
+  {
+    path: '/api/admin/registers/[id]/analytics',
+    isPublic: false,
+    accessTo: { GET: [...FORM_ADMIN] },
   },
   {
     path: '/api/admin/registers/[id]/export',
@@ -336,6 +384,35 @@ export const ALL_ROUTES: RouteConfig[] = [
   { path: '/api/enrollment/options', isPublic: true },
   { path: '/api/enrollment/crew', isPublic: true },
   { path: '/api/enrollment/crew/[code]/status', isPublic: true },
+  { path: '/api/public/crew-form/[token]', isPublic: true },
+  { path: '/api/public/crew-form/[token]/identify', isPublic: true },
+  {
+    path: '/api/public/crew-form/session/[sessionToken]/duty-types',
+    isPublic: true,
+  },
+  {
+    path: '/api/public/crew-form/session/[sessionToken]/form',
+    isPublic: true,
+  },
+  {
+    path: '/api/public/crew-form/session/[sessionToken]/submit',
+    isPublic: true,
+  },
+  {
+    path: '/api/lobbies/qr',
+    isPublic: false,
+    accessTo: { GET: [...LOBBY_READ] },
+  },
+  {
+    path: '/api/lobbies/[id]/qr',
+    isPublic: false,
+    accessTo: { GET: [...LOBBY_READ], POST: [...USER_ADMIN] },
+  },
+  {
+    path: '/api/lobbies/[id]/qr/image',
+    isPublic: false,
+    accessTo: { GET: [...LOBBY_READ] },
+  },
   {
     path: '/api/admin/crew-enrollments',
     isPublic: false,

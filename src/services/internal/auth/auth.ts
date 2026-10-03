@@ -43,6 +43,8 @@ export interface AuthResult {
       homeZoneId?: number | null;
       homeDivisionId?: number | null;
       homeLobbyId?: number | null;
+      crewTypeId?: number | null;
+      crewType?: { id: number; code: string; name: string; isActive: boolean } | null;
     };
     token?: string;
   };
@@ -235,6 +237,13 @@ export class AuthService {
 
       const token = await generateJWT(toSessionClaims(user));
 
+      const crewType = user.crewTypeId
+        ? await prisma.crewType.findUnique({
+            where: { id: user.crewTypeId },
+            select: { id: true, code: true, name: true, isActive: true },
+          })
+        : null;
+
       return {
         success: true,
         message: 'Login successful!',
@@ -253,6 +262,8 @@ export class AuthService {
             homeZoneId: user.homeZoneId,
             homeDivisionId: user.homeDivisionId,
             homeLobbyId: user.homeLobbyId,
+            crewTypeId: user.crewTypeId,
+            crewType,
           },
           token,
         },

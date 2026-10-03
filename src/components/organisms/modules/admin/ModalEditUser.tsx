@@ -17,6 +17,7 @@ import { Field, FieldContent, FieldError, FieldLabel } from '@/components/ui/fie
 import { Input } from '@/components/ui/input';
 import { useAdminUsers } from '@/hooks/useAdminUsers';
 import { ADMIN_ROLES, UserRole } from '@/lib/constants/admin';
+import { formatIstDisplay } from '@/lib/rmo/datetime';
 import { ModalEditUserProps } from '@/types/user';
 import { useState } from 'react';
 
@@ -186,13 +187,13 @@ export function ModalEditUser({ isOpen, onClose, user }: ModalEditUserProps) {
             <div>
               <span className="">Created:</span>
               <span className="ml-2 text-text-muted">
-                {new Date(user.createdAt).toLocaleDateString()}
+                {formatIstDisplay(user.createdAt, { dateStyle: 'medium' })}
               </span>
             </div>
             <div>
               <span className="">Last Updated:</span>
               <span className="ml-2 text-text-muted">
-                {new Date(user.updatedAt).toLocaleDateString()}
+                {formatIstDisplay(user.updatedAt, { dateStyle: 'medium' })}
               </span>
             </div>
             <div>

@@ -21,6 +21,7 @@ export async function requireActor(
       homeZoneId: true,
       homeDivisionId: true,
       homeLobbyId: true,
+      crewTypeId: true,
       accountStatus: true,
     },
   });

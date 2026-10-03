@@ -1,4 +1,5 @@
 import ExcelJS from 'exceljs';
+import { formatIstDateTime, formatIstFilenameTimestamp } from '@/lib/rmo/datetime';
 
 export interface WorkbookColumn {
   key: string;
@@ -29,11 +30,7 @@ export interface WorkbookPreview {
 }
 
 export function formatCellDate(value: Date | string | null | undefined): string {
-  if (value == null) return '';
-  const d = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(d.getTime())) return value === '' ? '' : String(value);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  return formatIstDateTime(value);
 }
 
 export function sanitizeExportFilenamePart(value: string): string {
@@ -41,8 +38,7 @@ export function sanitizeExportFilenamePart(value: string): string {
 }
 
 export function formatExportFilenameTimestamp(d: Date): string {
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+  return formatIstFilenameTimestamp(d);
 }
 
 export function safeExcelCell(value: unknown): string | number | boolean {

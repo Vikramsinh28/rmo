@@ -182,6 +182,9 @@ describe('Division operations', () => {
       homeZoneId: zone.id,
       homeDivisionId: ahmedabad.id,
       homeLobbyId: vatva.id,
+      crewTypeId: (await testPrisma.crewType.create({
+        data: { code: 'ALP', name: 'ALP', isActive: true, sortOrder: 1 },
+      })).id,
     }));
     expect(crew.status).toBe(201);
 

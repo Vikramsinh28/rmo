@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/dialog';
 import { apiRequest } from '@/components/organisms/modules/administration/api';
 import { FormFields, StatusPill, TableSkeleton } from '@/components/organisms/modules/forms/form-ui';
+import { formatIstDisplay } from '@/lib/rmo/datetime';
 import type { AnswerMap, FormSchema } from '@/types/form';
 import { useAuthStore } from '@/store/auth';
 import Link from 'next/link';
@@ -129,7 +130,7 @@ export function EnrollmentReviewScreen({ enrollmentId }: { enrollmentId: number 
           <Item label="Employee ID" value={row.employeeId} />
           <Item label="Staff number" value={row.staffNumber} />
           <Item label="Login ID" value={row.loginId} />
-          <Item label="Submitted" value={new Date(row.createdAt).toLocaleString()} />
+          <Item label="Submitted" value={formatIstDisplay(row.createdAt)} />
         </dl>
       </section>
       <section className="rounded-xl border bg-card p-4">

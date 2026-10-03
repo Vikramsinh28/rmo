@@ -324,14 +324,16 @@ export async function seedClientRegistersForDivision(options: {
       where: { id: formId },
       select: {
         id: true,
-        currentVersion: { select: { schema: true, status: true } },
+        crewTypeId: true,
+        dutyTypeId: true,
+        currentVersion: { select: { id: true, schema: true, status: true } },
       },
     });
     if (!form?.currentVersion || form.currentVersion.status !== 'PUBLISHED') {
       throw new Error(`Form ${definition.formName} must be published.`);
     }
     const schema = parseFormSchema(form.currentVersion.schema);
-    const available = new Set(schema.fields.map(field => field.key));
+    const available = new Map(schema.fields.map(field => [field.key, field]));
 
     let register = await prisma.register.findFirst({
       where: { divisionId, name: definition.registerName },
@@ -342,10 +344,10 @@ export async function seedClientRegistersForDivision(options: {
         data: {
           name: definition.registerName,
           description: definition.description,
-          divisionId,
-          formId,
           status: 'ACTIVE',
-          createdById,
+          division: { connect: { id: divisionId } },
+          createdBy: { connect: { id: createdById } },
+          form: { connect: { id: formId } },
         },
         select: { id: true },
       });
@@ -368,13 +370,21 @@ export async function seedClientRegistersForDivision(options: {
       await tx.registerField.deleteMany({ where: { registerId: register!.id } });
       if (mappable.length > 0) {
         await tx.registerField.createMany({
-          data: mappable.map((item, index) => ({
-            registerId: register!.id,
-            fieldKey: item.key,
-            sortOrder: index,
-            isKeyField: item.isKeyField,
-            columnLabel: null,
-          })),
+          data: mappable.map((item, index) => {
+            const field = available.get(item.key)!;
+            return {
+              registerId: register!.id,
+              formId: form.id,
+              formVersionId: form.currentVersion!.id,
+              fieldId: field.id,
+              fieldKey: field.key,
+              crewTypeId: form.crewTypeId,
+              dutyTypeId: form.dutyTypeId,
+              sortOrder: index,
+              isKeyField: item.isKeyField,
+              columnLabel: field.label,
+            };
+          }),
         });
       }
     });

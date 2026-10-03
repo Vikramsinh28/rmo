@@ -1,5 +1,6 @@
 'use client';
 
+import { formatIstDisplay } from '@/lib/rmo/datetime';
 import { useEffect } from 'react';
 
 export function useMonitoringEvents(onEvent: () => void) {
@@ -25,5 +26,5 @@ export function formatDuration(seconds: number | null | undefined) {
 
 export function formatWhen(value: string | null | undefined) {
   if (!value) return '—';
-  return new Date(value).toLocaleString();
+  return formatIstDisplay(value);
 }

@@ -9,18 +9,33 @@ import { usePathname } from 'next/navigation';
 
 function ConsoleHeader() {
   const user = useAuthStore(state => state.user);
+  const canSeeQr =
+    user?.rmoRole === 'SYSTEM_ADMIN' ||
+    user?.rmoRole === 'DIVISION_ADMIN' ||
+    user?.rmoRole === 'DIVISION_MONITOR' ||
+    user?.rmoRole === 'LOBBY_USER';
   return (
     <header className="flex h-14 items-center justify-between border-b bg-background px-4 lg:px-6">
       <div>
         <p className="text-sm font-semibold tracking-tight">RMO Remote Monitoring</p>
         <p className="text-xs text-muted-foreground">Administration console</p>
       </div>
-      {user ? (
-        <p className="text-xs text-muted-foreground">
-          {user.name}
-          <span className="ml-2 rounded-full border px-2 py-0.5">{user.rmoRole || user.role}</span>
-        </p>
-      ) : null}
+      <div className="flex items-center gap-3">
+        {canSeeQr ? (
+          <a
+            href="/lobby-qr"
+            className="rounded-md border px-3 py-1.5 text-xs font-medium hover:bg-muted"
+          >
+            Lobby QR
+          </a>
+        ) : null}
+        {user ? (
+          <p className="text-xs text-muted-foreground">
+            {user.name}
+            <span className="ml-2 rounded-full border px-2 py-0.5">{user.rmoRole || user.role}</span>
+          </p>
+        ) : null}
+      </div>
     </header>
   );
 }

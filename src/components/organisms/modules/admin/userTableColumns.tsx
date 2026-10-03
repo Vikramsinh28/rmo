@@ -18,6 +18,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
+import { formatIstDisplay } from '@/lib/rmo/datetime';
 import { ADMIN_ROLES, ROLES } from '@/lib/constants/admin';
 import type { User } from '@/types/user';
 
@@ -113,7 +114,7 @@ export const userTableColumns: ColumnDef<User>[] = [
             const createdAt = row.original.createdAt;
             const formatted =
                 createdAt && !Number.isNaN(new Date(createdAt).getTime())
-                    ? new Date(createdAt).toLocaleDateString()
+                    ? formatIstDisplay(createdAt, { dateStyle: 'medium' })
                     : 'N/A';
             return (
                 <div className="py-1">

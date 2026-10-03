@@ -18,6 +18,15 @@ export async function GET(
       search: params.get('search') || undefined,
       dateFrom: params.get('dateFrom') || undefined,
       dateTo: params.get('dateTo') || undefined,
+      crewTypeId: params.get('crewTypeId') ? Number(params.get('crewTypeId')) : undefined,
+      dutyTypeId: params.get('dutyTypeId') ? Number(params.get('dutyTypeId')) : undefined,
+      lobbyId: params.get('lobbyId') ? Number(params.get('lobbyId')) : undefined,
+      userId: params.get('userId') ? Number(params.get('userId')) : undefined,
+      status: params.get('status') || undefined,
+      formId: params.get('formId') ? Number(params.get('formId')) : undefined,
+      formVersionId: params.get('formVersionId')
+        ? Number(params.get('formVersionId'))
+        : undefined,
     });
     return successResponse({ workbook });
   } catch (error) {

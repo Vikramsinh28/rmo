@@ -2,7 +2,7 @@ import { prisma } from '@/lib/prisma';
 import { Prisma } from '@/lib/prisma/generated/client';
 
 export async function recordAudit(
-  actorId: number,
+  actorId: number | null,
   action: string,
   targetType: string,
   targetId: string | number | null,

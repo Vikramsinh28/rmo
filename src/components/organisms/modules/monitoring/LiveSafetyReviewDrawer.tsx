@@ -2,6 +2,7 @@
 
 import { apiRequest } from '@/components/organisms/modules/administration/api';
 import { Button } from '@/components/ui/button';
+import { formatIstDisplay } from '@/lib/rmo/datetime';
 import { useAuthStore } from '@/store/auth';
 import { useSafetyAlertStore } from '@/store/safety-alerts';
 import { ShieldAlert, X } from 'lucide-react';
@@ -121,7 +122,7 @@ export function LiveSafetyReviewDrawer({ callId }: { callId: number }) {
                         </span>
                       </div>
                       <p className="mt-1 text-xs text-muted-foreground">
-                        {new Date(event.startedAt).toLocaleTimeString()} ·{' '}
+                        {formatIstDisplay(event.startedAt, { timeStyle: 'medium' })} ·{' '}
                         {event.status === 'PENDING_REVIEW' ? 'Pending review' : 'Reviewed'}
                       </p>
                     </button>

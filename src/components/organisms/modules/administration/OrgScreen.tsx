@@ -12,6 +12,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
+import { formatIstDisplay } from '@/lib/rmo/datetime';
 import { FormEvent, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { apiRequest, StatusBadge } from './api';
@@ -255,7 +256,9 @@ export function OrgScreen({ kind, canWrite }: { kind: Kind; canWrite: boolean })
                         <td className="px-4 py-3 text-xs">{row.ai?.plan || '—'}</td>
                         <td className="px-4 py-3 text-xs">{row.ai?.status || 'NONE'}</td>
                         <td className="px-4 py-3 text-xs">
-                          {row.ai?.expiresAt ? new Date(row.ai.expiresAt).toLocaleDateString() : '—'}
+                          {row.ai?.expiresAt
+                            ? formatIstDisplay(row.ai.expiresAt, { dateStyle: 'medium' })
+                            : '—'}
                         </td>
                       </>
                     ) : null}

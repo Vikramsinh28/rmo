@@ -2,6 +2,7 @@
 
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { formatIstDisplay } from '@/lib/rmo/datetime';
 import { useEffect, useState } from 'react';
 import { apiRequest, StatusBadge } from './api';
 
@@ -116,7 +117,7 @@ export function AdminDashboard() {
                 <div className="flex items-center gap-3">
                   <StatusBadge status="ACTIVE" />
                   <time className="text-xs text-muted-foreground">
-                    {new Date(item.createdAt).toLocaleString()}
+                    {formatIstDisplay(item.createdAt)}
                   </time>
                 </div>
               </li>

@@ -46,7 +46,7 @@ export async function submissionAnalytics(actor: Actor, filter: SubmissionFilter
     week: { gte: startOfUtcWeek(now), lte: endOfUtcDay(now) },
     month: { gte: startOfUtcMonth(now), lte: endOfUtcDay(now) },
   };
-  const [total, pending, completed, today, week, month, statuses] = await Promise.all([
+  const [total, pending, completed, today, week, month, statuses, sources] = await Promise.all([
     prisma.submission.count({ where }),
     prisma.submission.count({ where: { AND: [where, { status: 'PENDING' }] } }),
     prisma.submission.count({ where: { AND: [where, { status: 'COMPLETED' }] } }),
@@ -55,6 +55,11 @@ export async function submissionAnalytics(actor: Actor, filter: SubmissionFilter
     prisma.submission.count({ where: { AND: [where, { submittedAt: windows.month }] } }),
     prisma.submission.groupBy({
       by: ['status'],
+      where,
+      _count: { _all: true },
+    }),
+    prisma.submission.groupBy({
+      by: ['source'],
       where,
       _count: { _all: true },
     }),
@@ -68,6 +73,7 @@ export async function submissionAnalytics(actor: Actor, filter: SubmissionFilter
   return {
     metrics: { total, today, week, month, pending, completed },
     status: statuses.map(row => ({ status: row.status, count: row._count._all })),
+    source: sources.map(row => ({ source: row.source, count: row._count._all })),
     trend,
   };
 }

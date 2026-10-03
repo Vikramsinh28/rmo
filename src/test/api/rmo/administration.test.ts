@@ -209,6 +209,10 @@ describe('RMO administration security', () => {
     expect(lobbyResponse.status).toBe(201);
     const lobby = (await lobbyResponse.json()).data;
 
+    const alp = await testPrisma.crewType.create({
+      data: { code: 'ALP', name: 'ALP', isActive: true, sortOrder: 1 },
+    });
+
     const created = await createUser(
       await requestFor(admin, '/api/admin/users', 'POST', {
         name: 'Crew One',
@@ -219,6 +223,7 @@ describe('RMO administration security', () => {
         homeZoneId: zone.id,
         homeDivisionId: division.id,
         homeLobbyId: lobby.id,
+        crewTypeId: alp.id,
       }),
     );
     expect(created.status).toBe(201);
@@ -235,6 +240,7 @@ describe('RMO administration security', () => {
         homeZoneId: zone.id,
         homeDivisionId: division.id,
         homeLobbyId: 99999,
+        crewTypeId: alp.id,
       }),
     );
     expect(mismatched.status).toBe(400);
@@ -334,6 +340,9 @@ describe('RMO administration security', () => {
         )
       ).json()
     ).data;
+    const alpType = await testPrisma.crewType.create({
+      data: { code: 'ALP', name: 'ALP', isActive: true, sortOrder: 1 },
+    });
     const crewInDivision = await createUser(
       await requestFor(divisionAdmin, '/api/admin/users', 'POST', {
         name: 'Ahmedabad Crew',
@@ -344,6 +353,7 @@ describe('RMO administration security', () => {
         homeZoneId: zone.id,
         homeDivisionId: ahmedabad.id,
         homeLobbyId: vatva.id,
+        crewTypeId: alpType.id,
       }),
     );
     expect(crewInDivision.status).toBe(201);
@@ -357,6 +367,7 @@ describe('RMO administration security', () => {
         rmoRole: 'CREW_USER',
         homeZoneId: zone.id,
         homeDivisionId: surat.id,
+        crewTypeId: alpType.id,
       }),
     );
     expect(outside.status).toBe(403);

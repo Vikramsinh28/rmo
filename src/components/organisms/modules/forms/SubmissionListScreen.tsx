@@ -3,6 +3,7 @@
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { apiRequest } from '@/components/organisms/modules/administration/api';
+import { formatIstDate, formatIstDisplay, istDaysAgo } from '@/lib/rmo/datetime';
 import { useAuthStore } from '@/store/auth';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
@@ -13,6 +14,7 @@ import { EmptyState, StatusPill, TableSkeleton } from './form-ui';
 interface SubmissionRow {
   id: number;
   status: string;
+  source?: string;
   submittedAt: string;
   form: { name: string };
   lobby: { name: string } | null;
@@ -22,12 +24,6 @@ interface SubmissionRow {
 interface Option {
   id: number;
   name: string;
-}
-
-function isoDaysAgo(days: number) {
-  const date = new Date();
-  date.setUTCDate(date.getUTCDate() - days);
-  return date.toISOString().slice(0, 10);
 }
 
 export function SubmissionListScreen() {
@@ -52,8 +48,9 @@ export function SubmissionListScreen() {
     userId: '',
     divisionId: '',
     status: '',
-    dateFrom: isoDaysAgo(29),
-    dateTo: new Date().toISOString().slice(0, 10),
+    source: '',
+    dateFrom: istDaysAgo(29),
+    dateTo: formatIstDate(new Date()),
   });
 
   const query = useMemo(() => {
@@ -198,6 +195,11 @@ export function SubmissionListScreen() {
           <option value="COMPLETED">Completed</option>
           <option value="PENDING">Pending</option>
         </select>
+        <select aria-label="Submission source" className="h-9 rounded-md border bg-background px-3 text-sm" value={filters.source} onChange={event => setFilter('source', event.target.value)}>
+          <option value="">All sources</option>
+          <option value="AUTHENTICATED">Authenticated</option>
+          <option value="PUBLIC_QR">Public QR</option>
+        </select>
         <Input aria-label="Date from" type="date" value={filters.dateFrom} onChange={event => setFilter('dateFrom', event.target.value)} />
         <Input aria-label="Date to" type="date" value={filters.dateTo} onChange={event => setFilter('dateTo', event.target.value)} />
       </div>
@@ -216,6 +218,7 @@ export function SubmissionListScreen() {
                 <th className="px-4 py-3 font-medium">Crew</th>
                 <th className="px-4 py-3 font-medium">Lobby</th>
                 <th className="px-4 py-3 font-medium">Submitted at</th>
+                <th className="px-4 py-3 font-medium">Source</th>
                 <th className="px-4 py-3 font-medium">Status</th>
                 <th className="px-4 py-3 font-medium">Actions</th>
               </tr>
@@ -227,7 +230,10 @@ export function SubmissionListScreen() {
                   <td className="px-4 py-3">{item.form.name}</td>
                   <td className="px-4 py-3">{item.submittedBy.loginId || item.submittedBy.name}</td>
                   <td className="px-4 py-3">{item.lobby?.name || '—'}</td>
-                  <td className="px-4 py-3">{new Date(item.submittedAt).toLocaleString()}</td>
+                  <td className="px-4 py-3">{formatIstDisplay(item.submittedAt)}</td>
+                  <td className="px-4 py-3">
+                    {item.source === 'PUBLIC_QR' ? 'Public QR' : 'Authenticated'}
+                  </td>
                   <td className="px-4 py-3"><StatusPill status={item.status} /></td>
                   <td className="px-4 py-3">
                     <Link className="font-medium underline" href={`/submissions/${item.id}`}>View</Link>

@@ -12,6 +12,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { RMO_ROLES, locationRequirement, type RmoRoleName } from '@/lib/rmo/access';
+import { formatIstDisplay } from '@/lib/rmo/datetime';
 import Link from 'next/link';
 import { FormEvent, useEffect, useState } from 'react';
 import { toast } from 'sonner';
@@ -35,9 +36,11 @@ interface UserRow {
   homeZoneId: number | null;
   homeDivisionId: number | null;
   homeLobbyId: number | null;
+  crewTypeId?: number | null;
   homeZone?: { name: string } | null;
   homeDivision?: { name: string } | null;
   homeLobby?: { name: string } | null;
+  crewType?: { id: number; code: string; name: string } | null;
   lastLoginAt?: string | null;
   faceEnrollmentStatus?: string;
   sourceEnrollment?: { id: number; publicCode: string; status: string } | null;
@@ -59,6 +62,7 @@ const EMPTY = {
   homeZoneId: '',
   homeDivisionId: '',
   homeLobbyId: '',
+  crewTypeId: '',
 };
 
 const MANAGED_ROLES: readonly RmoRoleName[] = ['DIVISION_MONITOR', 'LOBBY_USER', 'CREW_USER'];
@@ -89,6 +93,7 @@ export function UserScreen({
   const [divisions, setDivisions] = useState<Location[]>([]);
   const [lobbies, setLobbies] = useState<Location[]>([]);
   const [filterLobbies, setFilterLobbies] = useState<Location[]>([]);
+  const [crewTypes, setCrewTypes] = useState<Array<{ id: number; code: string; name: string }>>([]);
   const [confirmDisable, setConfirmDisable] = useState<UserRow | null>(null);
   const [viewing, setViewing] = useState<UserRow | null>(null);
   const assignableRoles = actorRole === 'DIVISION_ADMIN' ? MANAGED_ROLES : RMO_ROLES;
@@ -116,6 +121,9 @@ export function UserScreen({
     apiRequest<Page<Location>>('/api/admin/lobbies?pageSize=50')
       .then(result => setFilterLobbies(result.items))
       .catch(() => setFilterLobbies([]));
+    apiRequest<Array<{ id: number; code: string; name: string }>>('/api/admin/crew-types?activeOnly=true')
+      .then(setCrewTypes)
+      .catch(() => setCrewTypes([]));
   }, []);
 
   useEffect(() => {
@@ -157,6 +165,7 @@ export function UserScreen({
       homeZoneId: requirement === 'none' ? null : Number(form.homeZoneId),
       homeDivisionId: requirement === 'none' ? null : Number(form.homeDivisionId),
       homeLobbyId: requirement === 'lobby' ? Number(form.homeLobbyId) : null,
+      crewTypeId: form.rmoRole === 'CREW_USER' ? Number(form.crewTypeId) : null,
     };
     if (!editing && form.password) payload.password = form.password;
     try {
@@ -298,6 +307,7 @@ export function UserScreen({
                 <th className="px-4 py-3 font-medium">Name</th>
                 <th className="px-4 py-3 font-medium">User ID</th>
                 <th className="px-4 py-3 font-medium">Role</th>
+                <th className="px-4 py-3 font-medium">Crew Type</th>
                 <th className="px-4 py-3 font-medium">Face</th>
                 <th className="px-4 py-3 font-medium">Zone</th>
                 <th className="px-4 py-3 font-medium">Division</th>
@@ -316,6 +326,7 @@ export function UserScreen({
                   </td>
                   <td className="px-4 py-3">{row.loginId || '—'}</td>
                   <td className="px-4 py-3">{row.rmoRole}</td>
+                  <td className="px-4 py-3">{row.crewType?.code || '—'}</td>
                   <td className="px-4 py-3 text-xs">
                     {row.rmoRole === 'CREW_USER' ? (
                       row.faceEnrollmentStatus === 'ENROLLED' ? (
@@ -334,7 +345,7 @@ export function UserScreen({
                     <StatusBadge status={row.accountStatus} />
                   </td>
                   <td className="px-4 py-3 text-xs text-muted-foreground">
-                    {row.lastLoginAt ? new Date(row.lastLoginAt).toLocaleString() : 'Never'}
+                    {row.lastLoginAt ? formatIstDisplay(row.lastLoginAt) : 'Never'}
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex flex-wrap gap-2">
@@ -357,6 +368,7 @@ export function UserScreen({
                                 homeZoneId: row.homeZoneId ? String(row.homeZoneId) : '',
                                 homeDivisionId: row.homeDivisionId ? String(row.homeDivisionId) : '',
                                 homeLobbyId: row.homeLobbyId ? String(row.homeLobbyId) : '',
+                                crewTypeId: row.crewTypeId ? String(row.crewTypeId) : '',
                               });
                               setOpen(true);
                             }}
@@ -461,6 +473,23 @@ export function UserScreen({
                 This account stays in your assigned division.
               </p>
             ) : null}
+            {form.rmoRole === 'CREW_USER' ? (
+              <div className="space-y-2">
+                <Label htmlFor="user-crew-type">Crew Type</Label>
+                <select
+                  id="user-crew-type"
+                  className="h-9 w-full rounded-md border bg-background px-3 text-sm"
+                  value={form.crewTypeId}
+                  onChange={event => setForm(current => ({ ...current, crewTypeId: event.target.value }))}
+                  required
+                >
+                  <option value="">Select crew type</option>
+                  {crewTypes.map(item => (
+                    <option key={item.id} value={item.id}>{item.name}</option>
+                  ))}
+                </select>
+              </div>
+            ) : null}
             {requirement === 'lobby' ? (
               <div className="space-y-2">
                 <Label>Lobby</Label>
@@ -513,7 +542,7 @@ export function UserScreen({
             </div>
             <div>
               <dt className="text-muted-foreground">Last login</dt>
-              <dd>{viewing?.lastLoginAt ? new Date(viewing.lastLoginAt).toLocaleString() : 'Never'}</dd>
+              <dd>{viewing?.lastLoginAt ? formatIstDisplay(viewing.lastLoginAt) : 'Never'}</dd>
             </div>
             {viewing?.sourceEnrollment ? (
               <div className="col-span-2">

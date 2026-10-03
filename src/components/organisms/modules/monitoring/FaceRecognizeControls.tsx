@@ -3,6 +3,7 @@
 import { Button } from '@/components/ui/button';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import { formatIstDisplay } from '@/lib/rmo/datetime';
 import { apiRequest } from '../administration/api';
 
 interface FaceResult {
@@ -144,7 +145,7 @@ export function FaceRecognizeControls({
             </div>
           ))}
           <p className="text-[10px] text-zinc-500">
-            Recognized {new Date(result.recognizedAt).toLocaleTimeString()}
+            Recognized {formatIstDisplay(result.recognizedAt, { timeStyle: 'medium' })}
             {' · '}
             Requests this call: {result.recognitionRequestCount}
           </p>

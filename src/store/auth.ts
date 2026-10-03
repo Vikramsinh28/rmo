@@ -13,6 +13,8 @@ interface User {
   homeZoneId?: number | null;
   homeDivisionId?: number | null;
   homeLobbyId?: number | null;
+  crewTypeId?: number | null;
+  crewType?: { id: number; code: string; name: string; isActive?: boolean } | null;
   isOnboarded: boolean;
 }
 

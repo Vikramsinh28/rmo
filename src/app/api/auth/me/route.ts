@@ -24,11 +24,13 @@ export async function GET(request: NextRequest) {
       homeZoneId: true,
       homeDivisionId: true,
       homeLobbyId: true,
+      crewTypeId: true,
       profilePicture: true,
       isOnboarded: true,
       homeZone: { select: { id: true, name: true, code: true } },
       homeDivision: { select: { id: true, name: true, code: true } },
       homeLobby: { select: { id: true, name: true, code: true } },
+      crewType: { select: { id: true, code: true, name: true, isActive: true } },
     },
   });
 

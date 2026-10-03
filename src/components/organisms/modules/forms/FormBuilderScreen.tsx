@@ -39,11 +39,21 @@ interface LoadedForm {
   name: string;
   description: string;
   divisionId: number | null;
+  crewTypeId: number | null;
+  dutyTypeId: number | null;
   status: string;
   schema: FormSchema;
   versions: Array<{ id: number; versionNumber: number; status: string }>;
   assignments: Array<{ divisionId: number; lobbyId: number | null }>;
+  registers?: Array<{ id: number; name: string; status: string }>;
   versionCreated?: boolean;
+}
+
+interface CatalogType {
+  id: number;
+  code: string;
+  name: string;
+  isActive: boolean;
 }
 
 export function FormBuilderScreen({ formId }: { formId?: number }) {
@@ -57,6 +67,11 @@ export function FormBuilderScreen({ formId }: { formId?: number }) {
   const [description, setDescription] = useState('');
   const [divisionId, setDivisionId] = useState('');
   const [systemWide, setSystemWide] = useState(false);
+  const [crewTypeId, setCrewTypeId] = useState('');
+  const [dutyTypeId, setDutyTypeId] = useState('');
+  const [crewTypes, setCrewTypes] = useState<CatalogType[]>([]);
+  const [dutyTypes, setDutyTypes] = useState<CatalogType[]>([]);
+  const [registers, setRegisters] = useState<Array<{ id: number; name: string }>>([]);
   const [status, setStatus] = useState('DRAFT');
   const [schema, setSchema] = useState<FormSchema>({ sections: ['General'], fields: [] });
   const [selected, setSelected] = useState(0);
@@ -74,9 +89,12 @@ export function FormBuilderScreen({ formId }: { formId?: number }) {
     setDescription(form.description);
     setDivisionId(form.divisionId ? String(form.divisionId) : '');
     setSystemWide(form.divisionId == null);
+    setCrewTypeId(form.crewTypeId ? String(form.crewTypeId) : '');
+    setDutyTypeId(form.dutyTypeId ? String(form.dutyTypeId) : '');
     setStatus(form.status);
     setSchema(form.schema);
     setVersions(form.versions);
+    setRegisters(form.registers ?? []);
     setDivisionWide(form.assignments.some(item => item.lobbyId == null));
     setLobbyIds(form.assignments.flatMap(item => (item.lobbyId == null ? [] : [item.lobbyId])));
   };
@@ -86,6 +104,12 @@ export function FormBuilderScreen({ formId }: { formId?: number }) {
     apiRequest<{ items: Division[] }>('/api/admin/divisions?pageSize=50')
       .then(result => setDivisions(result.items))
       .catch(() => setDivisions([]));
+    apiRequest<CatalogType[]>('/api/admin/crew-types?activeOnly=true')
+      .then(setCrewTypes)
+      .catch(() => setCrewTypes([]));
+    apiRequest<CatalogType[]>('/api/admin/duty-types?activeOnly=true')
+      .then(setDutyTypes)
+      .catch(() => setDutyTypes([]));
   }, [role]);
 
   useEffect(() => {
@@ -93,6 +117,20 @@ export function FormBuilderScreen({ formId }: { formId?: number }) {
       .then(result => setLobbies(result.items))
       .catch(() => setLobbies([]));
   }, []);
+
+  useEffect(() => {
+    if (!formId || !divisionId) return;
+    apiRequest<{ items: Array<{ id: number; name: string; formId: number }> }>(
+      `/api/admin/registers?pageSize=50&divisionId=${divisionId}`,
+    )
+      .then(result =>
+        setRegisters(result.items.filter(item => item.formId === formId).map(item => ({
+          id: item.id,
+          name: item.name,
+        }))),
+      )
+      .catch(() => undefined);
+  }, [formId, divisionId]);
 
   const homeDivision = role === 'DIVISION_ADMIN' && homeDivisionId ? String(homeDivisionId) : '';
   const [appliedHomeDivision, setAppliedHomeDivision] = useState('');
@@ -138,6 +176,8 @@ export function FormBuilderScreen({ formId }: { formId?: number }) {
     description,
     divisionId: systemWide || !divisionId ? undefined : Number(divisionId),
     systemWide,
+    crewTypeId: crewTypeId ? Number(crewTypeId) : null,
+    dutyTypeId: dutyTypeId ? Number(dutyTypeId) : null,
     schema,
     assignments: assignments(),
   });
@@ -320,6 +360,42 @@ export function FormBuilderScreen({ formId }: { formId?: number }) {
                     : 'This form stays in your division.'}
               </p>
             )}
+            {canEdit ? (
+              <>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="crew-type">Crew / Staff Type</Label>
+                  <select
+                    id="crew-type"
+                    aria-label="Crew type"
+                    className={controlClass}
+                    value={crewTypeId}
+                    disabled={!canEdit || systemWide}
+                    onChange={event => setCrewTypeId(event.target.value)}
+                  >
+                    <option value="">None (legacy / lobby form)</option>
+                    {crewTypes.map(item => (
+                      <option key={item.id} value={item.id}>{item.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="duty-type">Duty Type</Label>
+                  <select
+                    id="duty-type"
+                    aria-label="Duty type"
+                    className={controlClass}
+                    value={dutyTypeId}
+                    disabled={!canEdit || systemWide}
+                    onChange={event => setDutyTypeId(event.target.value)}
+                  >
+                    <option value="">None (legacy / lobby form)</option>
+                    {dutyTypes.map(item => (
+                      <option key={item.id} value={item.id}>{item.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </>
+            ) : null}
           </div>
           {canEdit && divisionId && !preview ? (
             <div className="shrink-0 rounded-xl border bg-card p-4">
@@ -443,6 +519,27 @@ export function FormBuilderScreen({ formId }: { formId?: number }) {
                 <input className="size-4" type="checkbox" checked={field.required} onChange={event => updateField({ required: event.target.checked })} />
                 Required
               </label>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="field-register">Register mapping</Label>
+                <select
+                  id="field-register"
+                  className={controlClass}
+                  value={field.registerId ?? ''}
+                  onChange={event =>
+                    updateField({
+                      registerId: event.target.value ? Number(event.target.value) : null,
+                    })
+                  }
+                >
+                  <option value="">None</option>
+                  {registers.map(register => (
+                    <option key={register.id} value={register.id}>{register.name}</option>
+                  ))}
+                </select>
+                <p className="text-xs text-muted-foreground">
+                  Optional. Maps this question into a register for reporting. Crew still fills one form.
+                </p>
+              </div>
               {field.type === 'SINGLE_SELECT' || field.type === 'MULTI_SELECT' || field.type === 'RADIO' ? (
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="field-options">Options, one per line</Label>

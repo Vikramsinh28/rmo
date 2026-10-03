@@ -1,3 +1,5 @@
+import { formatIstDisplay } from '@/lib/rmo/datetime';
+
 /**
  * User data interface for email template variables
  */
@@ -52,7 +54,9 @@ export function replaceEmailVariables(emailBodyContent: string, userData: UserDa
   );
   processedContent = processedContent.replace(
     /\{\{planExpiringAt\}\}/g,
-    userData.planExpiringAt ? userData.planExpiringAt.toLocaleDateString() : ''
+    userData.planExpiringAt
+      ? formatIstDisplay(userData.planExpiringAt, { dateStyle: 'medium' })
+      : ''
   );
 
   return processedContent;

@@ -3,8 +3,9 @@
 import { Button } from '@/components/ui/button';
 import { apiRequest } from '@/components/organisms/modules/administration/api';
 import type { AnswerMap, FormSchema } from '@/types/form';
+import { useAuthStore } from '@/store/auth';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { FormEvent, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { clientErrors, FormFields, TableSkeleton } from './form-ui';
@@ -14,11 +15,15 @@ interface LoadedForm {
   name: string;
   description: string;
   status: string;
+  dutyTypeId: number | null;
   schema: FormSchema;
 }
 
 export function FormFillScreen({ formId }: { formId: number }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const role = useAuthStore(state => state.user?.rmoRole);
+  const dutyFromQuery = searchParams.get('dutyTypeId');
   const [form, setForm] = useState<LoadedForm | null>(null);
   const [answers, setAnswers] = useState<AnswerMap>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -42,9 +47,21 @@ export function FormFillScreen({ formId }: { formId: number }) {
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) return;
     try {
+      const dutyTypeId =
+        role === 'CREW_USER'
+          ? Number(dutyFromQuery || form.dutyTypeId)
+          : undefined;
+      if (role === 'CREW_USER' && (!dutyTypeId || !Number.isInteger(dutyTypeId))) {
+        toast.error('Duty type is required to submit this form.');
+        return;
+      }
       const created = await apiRequest<{ id: number }>('/api/submissions', {
         method: 'POST',
-        body: JSON.stringify({ formId: form.id, answers }),
+        body: JSON.stringify({
+          formId: form.id,
+          answers,
+          ...(dutyTypeId ? { dutyTypeId } : {}),
+        }),
       });
       toast.success('Submission saved');
       router.push(`/submissions/${created.id}`);

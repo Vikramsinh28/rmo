@@ -1,6 +1,7 @@
 'use client';
 
 import { apiRequest } from '@/components/organisms/modules/administration/api';
+import { formatIstDisplay } from '@/lib/rmo/datetime';
 import type { AnswerMap, FormSchema } from '@/types/form';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
@@ -51,7 +52,7 @@ export function SubmissionDetailScreen({ submissionId }: { submissionId: number 
         <div><dt className="text-muted-foreground">Division</dt><dd>{row.division.name}</dd></div>
         <div><dt className="text-muted-foreground">Lobby</dt><dd>{row.lobby?.name || '—'}</dd></div>
         <div><dt className="text-muted-foreground">Submitted by</dt><dd>{row.submittedBy.loginId || row.submittedBy.name}</dd></div>
-        <div><dt className="text-muted-foreground">Submitted at</dt><dd>{new Date(row.submittedAt).toLocaleString()}</dd></div>
+        <div><dt className="text-muted-foreground">Submitted at</dt><dd>{formatIstDisplay(row.submittedAt)}</dd></div>
       </dl>
       <FormFields schema={row.formVersion.schema} answers={row.answers || {}} readOnly />
     </div>

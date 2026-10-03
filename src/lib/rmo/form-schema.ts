@@ -30,6 +30,7 @@ export function blankField(order: number, section = 'General'): FormField {
     validation: {},
     displayOrder: order,
     section,
+    registerId: null,
   };
 }
 
@@ -99,6 +100,16 @@ function parseField(value: unknown, index: number): FormField {
     fail(`${label} needs at least one option.`);
   }
   if (new Set(options).size !== options.length) fail(`${label} has duplicate options.`);
+  let registerId: number | null | undefined;
+  if (record.registerId !== undefined && record.registerId !== null && record.registerId !== '') {
+    const parsed = Number(record.registerId);
+    if (!Number.isInteger(parsed) || parsed <= 0) {
+      fail(`${label} has an invalid register mapping.`);
+    }
+    registerId = parsed;
+  } else if (record.registerId === null) {
+    registerId = null;
+  }
   return {
     id: text(record.id) || `field_${index + 1}`,
     key,
@@ -111,6 +122,7 @@ function parseField(value: unknown, index: number): FormField {
     validation: parseValidation(record.validation),
     displayOrder: Number.isFinite(Number(record.displayOrder)) ? Number(record.displayOrder) : index,
     section,
+    ...(registerId !== undefined ? { registerId } : {}),
   };
 }
 

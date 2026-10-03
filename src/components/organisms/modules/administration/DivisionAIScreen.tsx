@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
+import { formatIstDateTime, parseIstDateTimeLocal } from '@/lib/rmo/datetime';
 import { useAuthStore } from '@/store/auth';
 import Link from 'next/link';
 import { FormEvent, useCallback, useEffect, useState } from 'react';
@@ -73,10 +74,10 @@ const FEATURES: { key: keyof FeatureSet; title: string; description: string }[] 
 
 function toInputDate(value: string | null | undefined) {
   if (!value) return '';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '';
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  const formatted = formatIstDateTime(value);
+  if (!formatted) return '';
+  // datetime-local wants `YYYY-MM-DDTHH:mm`
+  return formatted.replace(' ', 'T').slice(0, 16);
 }
 
 export function DivisionAIScreen({ divisionId }: { divisionId: number }) {
@@ -139,8 +140,8 @@ export function DivisionAIScreen({ divisionId }: { divisionId: number }) {
           enabled: form.enabled,
           plan: form.plan,
           status: form.status,
-          startsAt: form.startsAt ? new Date(form.startsAt).toISOString() : null,
-          expiresAt: form.expiresAt ? new Date(form.expiresAt).toISOString() : null,
+          startsAt: parseIstDateTimeLocal(form.startsAt),
+          expiresAt: parseIstDateTimeLocal(form.expiresAt),
           features: form.features,
         }),
       });

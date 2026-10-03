@@ -3,6 +3,7 @@
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { apiRequest } from '@/components/organisms/modules/administration/api';
+import { formatIstDate, istDaysAgo, istMonthsAgo } from '@/lib/rmo/datetime';
 import { useAuthStore } from '@/store/auth';
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
@@ -26,37 +27,31 @@ interface Metrics {
 interface AnalyticsPayload {
   metrics: Metrics;
   status: Array<{ status: string; count: number }>;
+  source?: Array<{ source: string; count: number }>;
   trend: { bucket: string; points: Array<{ label: string; count: number }> };
-}
-
-function isoDaysAgo(days: number) {
-  const date = new Date();
-  date.setUTCDate(date.getUTCDate() - days);
-  return date.toISOString().slice(0, 10);
-}
-
-function monthsAgo(months: number) {
-  const date = new Date();
-  date.setUTCMonth(date.getUTCMonth() - months);
-  return date.toISOString().slice(0, 10);
 }
 
 export function AnalyticsScreen() {
   const role = useAuthStore(state => state.user?.rmoRole);
-  const today = new Date().toISOString().slice(0, 10);
+  const today = formatIstDate(new Date());
   const [filters, setFilters] = useState({
-    dateFrom: isoDaysAgo(29),
+    dateFrom: istDaysAgo(29),
     dateTo: today,
     divisionId: '',
     lobbyId: '',
     formId: '',
     registerId: '',
+    crewTypeId: '',
+    dutyTypeId: '',
     status: '',
+    source: '',
   });
   const [divisions, setDivisions] = useState<Option[]>([]);
   const [lobbies, setLobbies] = useState<Option[]>([]);
   const [forms, setForms] = useState<Option[]>([]);
   const [registers, setRegisters] = useState<Option[]>([]);
+  const [crewTypes, setCrewTypes] = useState<Option[]>([]);
+  const [dutyTypes, setDutyTypes] = useState<Option[]>([]);
   const [payload, setPayload] = useState<AnalyticsPayload | null>(null);
   const [byForm, setByForm] = useState<Array<{ name: string; count: number }>>([]);
   const [byLobby, setByLobby] = useState<Array<{ name: string; count: number }>>([]);
@@ -92,6 +87,12 @@ export function AnalyticsScreen() {
     apiRequest<{ items: Option[] }>('/api/admin/forms?pageSize=50').then(result => setForms(result.items)).catch(() => setForms([]));
     apiRequest<{ items: Option[] }>('/api/admin/lobbies?pageSize=50').then(result => setLobbies(result.items)).catch(() => setLobbies([]));
     apiRequest<{ items: Option[] }>('/api/admin/registers?pageSize=50').then(result => setRegisters(result.items)).catch(() => setRegisters([]));
+    apiRequest<Array<{ id: number; name: string }>>('/api/admin/crew-types?activeOnly=true')
+      .then(items => setCrewTypes(items.map(item => ({ id: item.id, name: item.name }))))
+      .catch(() => setCrewTypes([]));
+    apiRequest<Array<{ id: number; name: string }>>('/api/admin/duty-types?activeOnly=true')
+      .then(items => setDutyTypes(items.map(item => ({ id: item.id, name: item.name }))))
+      .catch(() => setDutyTypes([]));
     if (role === 'SYSTEM_ADMIN') {
       apiRequest<{ items: Option[] }>('/api/admin/divisions?pageSize=50')
         .then(result => setDivisions(result.items))
@@ -169,9 +170,9 @@ export function AnalyticsScreen() {
         </div>
       </div>
       <div className="flex flex-wrap gap-2">
-        <Button variant="outline" className="h-8" onClick={() => setFilters(current => ({ ...current, dateFrom: isoDaysAgo(6), dateTo: today }))}>Last 7 days</Button>
-        <Button variant="outline" className="h-8" onClick={() => setFilters(current => ({ ...current, dateFrom: isoDaysAgo(29), dateTo: today }))}>Last 30 days</Button>
-        <Button variant="outline" className="h-8" onClick={() => setFilters(current => ({ ...current, dateFrom: monthsAgo(3), dateTo: today }))}>Last 3 months</Button>
+        <Button variant="outline" className="h-8" onClick={() => setFilters(current => ({ ...current, dateFrom: istDaysAgo(6), dateTo: today }))}>Last 7 days</Button>
+        <Button variant="outline" className="h-8" onClick={() => setFilters(current => ({ ...current, dateFrom: istDaysAgo(29), dateTo: today }))}>Last 30 days</Button>
+        <Button variant="outline" className="h-8" onClick={() => setFilters(current => ({ ...current, dateFrom: istMonthsAgo(3), dateTo: today }))}>Last 3 months</Button>
       </div>
       <div className="grid gap-2 md:grid-cols-4">
         <Input aria-label="Date from" type="date" value={filters.dateFrom} onChange={event => setFilters(current => ({ ...current, dateFrom: event.target.value }))} />
@@ -194,10 +195,23 @@ export function AnalyticsScreen() {
           <option value="">All registers</option>
           {registers.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
         </select>
+        <select aria-label="Crew type" className="h-9 rounded-md border bg-background px-3 text-sm" value={filters.crewTypeId} onChange={event => setFilters(current => ({ ...current, crewTypeId: event.target.value }))}>
+          <option value="">All crew types</option>
+          {crewTypes.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
+        </select>
+        <select aria-label="Duty type" className="h-9 rounded-md border bg-background px-3 text-sm" value={filters.dutyTypeId} onChange={event => setFilters(current => ({ ...current, dutyTypeId: event.target.value }))}>
+          <option value="">All duty types</option>
+          {dutyTypes.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
+        </select>
         <select aria-label="Status" className="h-9 rounded-md border bg-background px-3 text-sm" value={filters.status} onChange={event => setFilters(current => ({ ...current, status: event.target.value }))}>
           <option value="">All statuses</option>
           <option value="COMPLETED">Completed</option>
           <option value="PENDING">Pending</option>
+        </select>
+        <select aria-label="Submission source" className="h-9 rounded-md border bg-background px-3 text-sm" value={filters.source} onChange={event => setFilters(current => ({ ...current, source: event.target.value }))}>
+          <option value="">All sources</option>
+          <option value="AUTHENTICATED">Authenticated</option>
+          <option value="PUBLIC_QR">Public QR</option>
         </select>
       </div>
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
@@ -221,6 +235,16 @@ export function AnalyticsScreen() {
               <h2 className="mb-3 text-sm font-medium">Status</h2>
               <BarList
                 items={payload.status.map(item => ({ label: item.status, count: item.count }))}
+                empty="No submissions in this range."
+              />
+            </article>
+            <article className="rounded-xl border bg-card p-4">
+              <h2 className="mb-3 text-sm font-medium">Submission source</h2>
+              <BarList
+                items={(payload.source || []).map(item => ({
+                  label: item.source === 'PUBLIC_QR' ? 'Public QR' : 'Authenticated',
+                  count: item.count,
+                }))}
                 empty="No submissions in this range."
               />
             </article>

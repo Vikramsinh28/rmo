@@ -33,16 +33,16 @@ sass-boilerplate/
 ├── public/                    # Static assets
 │   ├── favicon/              # Favicon assets
 │   ├── logos/                # Brand logo files
-│   └── screenshots/          # Application screenshots
-│
-├── src/
-│   ├── app/                   # Next.js app router
+│   └── screenshotsapp/                   # Next.js app router
 │   │   ├── (branding)/       # Landing page and marketing routes
 │   │   │   ├── contact/
 │   │   │   ├── privacy-policy/
 │   │   │   └── terms-of-services/
 │   │   │
-│   │   ├── api/              # API routes and endpoints
+│   │   ├── api/              # AP/          # Application screenshots
+│
+├── src/
+│   ├── I routes and endpoints
 │   │   │   ├── admin/        # Admin management endpoints
 │   │   │   ├── auth/         # Authentication endpoints
 │   │   │   ├── billing/      # Billing and payment endpoints

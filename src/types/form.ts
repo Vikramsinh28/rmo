@@ -36,6 +36,8 @@ export interface FormField {
   validation: FieldValidation;
   displayOrder: number;
   section: string;
+  /** Optional register mapping for reporting; not shown as a separate crew form. */
+  registerId?: number | null;
 }
 
 export interface FormSchema {

@@ -54,6 +54,8 @@ export async function cleanupDatabase() {
       await tx.lobby.deleteMany({});
       await tx.division.deleteMany({});
       await tx.zone.deleteMany({});
+      await tx.crewType.deleteMany({});
+      await tx.dutyType.deleteMany({});
     });
 
     // Ensure all operations are completed

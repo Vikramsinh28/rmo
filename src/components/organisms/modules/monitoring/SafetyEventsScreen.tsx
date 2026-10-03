@@ -4,6 +4,7 @@ import { apiRequest } from '@/components/organisms/modules/administration/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { formatIstDisplay } from '@/lib/rmo/datetime';
 import { useSafetyAlertStore } from '@/store/safety-alerts';
 import { useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
@@ -237,7 +238,7 @@ export function EventDetail({
           {event.subject?.confidence != null ? ` · ${percent(event.subject.confidence)}` : ''}
         </dd>
         <dt className="text-muted-foreground">Started</dt>
-        <dd>{new Date(event.startedAt).toLocaleString()}</dd>
+        <dd>{formatIstDisplay(event.startedAt)}</dd>
         <dt className="text-muted-foreground">Duration</dt>
         <dd>{duration(event.startedAt, event.endedAt)}</dd>
         <dt className="text-muted-foreground">Peak score</dt>
@@ -287,7 +288,7 @@ export function EventDetail({
           </p>
           <p className="text-xs text-muted-foreground">
             {event.review.reviewedBy?.name || 'Unknown'} ·{' '}
-            {new Date(event.review.reviewedAt).toLocaleString()}
+            {formatIstDisplay(event.review.reviewedAt)}
           </p>
           <p className="mt-1 text-xs">
             Breath test:{' '}
@@ -460,7 +461,7 @@ export function SafetyEventsScreen() {
                       }}
                     >
                       <td className="px-4 py-3 text-xs">
-                        {new Date(row.startedAt).toLocaleString()}
+                        {formatIstDisplay(row.startedAt)}
                         <span className="block text-muted-foreground">
                           {duration(row.startedAt, row.endedAt)}
                         </span>

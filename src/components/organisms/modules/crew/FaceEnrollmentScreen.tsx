@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { apiRequest } from '@/components/organisms/modules/administration/api';
+import { formatIstDisplay } from '@/lib/rmo/datetime';
 
 type EnrollmentStatus = 'NOT_ENROLLED' | 'PENDING' | 'ENROLLED' | 'FAILED' | 'DISABLED';
 
@@ -156,7 +157,7 @@ export function FaceEnrollmentScreen() {
           <p className="text-lg font-semibold text-emerald-700">✓ Face enrollment completed</p>
           <p className="mt-2 text-sm text-muted-foreground">
             Your face has been enrolled for AI monitoring in your division.
-            {state?.enrolledAt ? ` Enrolled ${new Date(state.enrolledAt).toLocaleString()}.` : ''}
+            {state?.enrolledAt ? ` Enrolled ${formatIstDisplay(state.enrolledAt)}.` : ''}
           </p>
           <Button
             className="mt-4"

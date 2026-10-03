@@ -13,6 +13,7 @@ import {
   type RmoRoleName,
 } from '@/lib/rmo/access';
 import { RmoError } from '@/lib/rmo/errors';
+import { generateLobbyPublicToken } from '@/lib/rmo/public-crew-form';
 import { enrollmentCounts } from '@/services/internal/rmo/crew-enrollment';
 import {
   presentAISummary,
@@ -33,6 +34,7 @@ const userSelect = {
   homeZoneId: true,
   homeDivisionId: true,
   homeLobbyId: true,
+  crewTypeId: true,
   profilePicture: true,
   isOnboarded: true,
   createdAt: true,
@@ -42,6 +44,7 @@ const userSelect = {
   homeLobby: {
     select: { id: true, name: true, code: true, divisionId: true, status: true },
   },
+  crewType: { select: { id: true, code: true, name: true, isActive: true } },
   sourceEnrollment: { select: { id: true, publicCode: true, status: true } },
 } satisfies Prisma.UserSelect;
 
@@ -51,6 +54,7 @@ export type Actor = {
   homeZoneId: number | null;
   homeDivisionId: number | null;
   homeLobbyId: number | null;
+  crewTypeId: number | null;
   accountStatus: AccountStatus;
 };
 
@@ -429,7 +433,12 @@ export async function createLobby(
   if (!name || !code) throw new RmoError('Name and code are required.', 400);
   try {
     const lobby = await prisma.lobby.create({
-      data: { divisionId: division.id, name, code },
+      data: {
+        divisionId: division.id,
+        name,
+        code,
+        publicToken: generateLobbyPublicToken(),
+      },
       include: {
         division: {
           select: { id: true, name: true, code: true, zoneId: true },
@@ -488,6 +497,26 @@ export async function updateLobby(
     }
     throw error;
   }
+}
+
+async function resolveCrewTypeId(
+  role: RmoRoleName,
+  crewTypeId: number | null | undefined,
+): Promise<number | null> {
+  if (role !== 'CREW_USER') {
+    return null;
+  }
+  if (crewTypeId == null || !Number.isInteger(crewTypeId)) {
+    throw new RmoError('Crew type is required for crew users.', 400);
+  }
+  const crewType = await prisma.crewType.findUnique({
+    where: { id: crewTypeId },
+    select: { id: true, isActive: true },
+  });
+  if (!crewType || !crewType.isActive) {
+    throw new RmoError('Crew type was not found or is inactive.', 400);
+  }
+  return crewType.id;
 }
 
 async function resolveLocation(role: RmoRoleName, input: HomeLocationInput) {
@@ -583,6 +612,7 @@ export interface UserWriteInput extends HomeLocationInput {
   password?: string;
   rmoRole: string;
   accountStatus?: string;
+  crewTypeId?: number | null;
 }
 
 export async function createDirectoryUser(actor: Actor, input: UserWriteInput) {
@@ -622,6 +652,7 @@ export async function createDirectoryUser(actor: Actor, input: UserWriteInput) {
   if (!passwordCheck.isValid) {
     throw new RmoError(passwordCheck.errors.join(', '), 400);
   }
+  const crewTypeId = await resolveCrewTypeId(input.rmoRole, input.crewTypeId);
   const password = await hashPassword(input.password);
   try {
     const user = await prisma.user.create({
@@ -637,6 +668,7 @@ export async function createDirectoryUser(actor: Actor, input: UserWriteInput) {
         homeZoneId: location.zone?.id ?? null,
         homeDivisionId: location.division?.id ?? null,
         homeLobbyId: location.lobby?.id ?? null,
+        crewTypeId,
       },
       select: userSelect,
     });
@@ -648,10 +680,12 @@ export async function createDirectoryUser(actor: Actor, input: UserWriteInput) {
       homeZoneId: user.homeZoneId,
       homeDivisionId: user.homeDivisionId,
       homeLobbyId: user.homeLobbyId,
+      crewTypeId: user.crewTypeId,
       after: {
         rmoRole: user.rmoRole,
         homeDivisionId: user.homeDivisionId,
         homeLobbyId: user.homeLobbyId,
+        crewTypeId: user.crewTypeId,
         accountStatus: user.accountStatus,
       },
     });
@@ -746,6 +780,13 @@ export async function updateDirectoryUser(
     throw new RmoError('You cannot disable your own account.', 403);
   }
 
+  const crewTypeId =
+    input.crewTypeId !== undefined || requestedRole || nextRole === 'CREW_USER'
+      ? await resolveCrewTypeId(
+          nextRole,
+          input.crewTypeId !== undefined ? input.crewTypeId : existing.crewTypeId,
+        )
+      : existing.crewTypeId;
   const user = await prisma.user.update({
     where: { id },
     data: {
@@ -761,6 +802,7 @@ export async function updateDirectoryUser(
       homeZoneId: location.zone?.id ?? null,
       homeDivisionId: location.division?.id ?? null,
       homeLobbyId: location.lobby?.id ?? null,
+      crewTypeId,
     },
     select: userSelect,
   });

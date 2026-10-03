@@ -19,6 +19,7 @@ import {
   assertSubmitter,
   assignedFormIds,
   buildSubmissionWhere,
+  crewFormIds,
   type SubmissionFilter,
 } from '@/services/internal/rmo/submission-scope';
 
@@ -30,14 +31,20 @@ const submissionSelect = {
   formVersionId: true,
   divisionId: true,
   lobbyId: true,
+  crewTypeId: true,
+  dutyTypeId: true,
   submittedById: true,
   submittedAt: true,
   status: true,
+  source: true,
+  publicReference: true,
   answers: true,
   form: { select: { id: true, name: true, description: true } },
   formVersion: { select: { id: true, versionNumber: true, status: true, schema: true } },
   division: { select: { id: true, name: true, code: true } },
   lobby: { select: { id: true, name: true, code: true } },
+  crewType: { select: { id: true, code: true, name: true } },
+  dutyType: { select: { id: true, code: true, name: true } },
   submittedBy: { select: { id: true, name: true, loginId: true } },
 } satisfies Prisma.SubmissionSelect;
 
@@ -51,13 +58,19 @@ function present(
     formVersionId: row.formVersionId,
     divisionId: row.divisionId,
     lobbyId: row.lobbyId,
+    crewTypeId: row.crewTypeId,
+    dutyTypeId: row.dutyTypeId,
     submittedById: row.submittedById,
     submittedAt: row.submittedAt,
     status: row.status,
+    source: row.source,
+    publicReference: row.publicReference,
     answers: row.answers,
     form: row.form,
     division: row.division,
     lobby: row.lobby,
+    crewType: row.crewType,
+    dutyType: row.dutyType,
     submittedBy: row.submittedBy,
     formVersion: {
       id: row.formVersion.id,
@@ -138,20 +151,30 @@ export async function createSubmission(
     answers?: unknown;
     divisionId?: number;
     lobbyId?: number;
+    crewTypeId?: number;
+    dutyTypeId?: number;
+    userId?: number;
   },
 ) {
   assertSubmitter(actor);
+  // Never trust client-supplied identity / org / crew type.
   if (input.divisionId != null && input.divisionId !== actor.homeDivisionId) {
     throw new RmoError(DENIED, 403);
   }
   if (input.lobbyId != null && input.lobbyId !== actor.homeLobbyId) {
     throw new RmoError(DENIED, 403);
   }
+  if (input.userId != null && input.userId !== actor.id) {
+    throw new RmoError(DENIED, 403);
+  }
+  if (input.crewTypeId != null && input.crewTypeId !== actor.crewTypeId) {
+    throw new RmoError(DENIED, 403);
+  }
   if (input.formId == null || !Number.isInteger(input.formId)) {
     throw new RmoError('A form is required.', 400);
   }
-  const allowed = await assignedFormIds(actor);
-  if (!allowed.includes(input.formId)) throw new RmoError(DENIED, 403);
+
+  const role = actorRole(actor);
   const form = await prisma.form.findUnique({
     where: { id: input.formId },
     include: { currentVersion: true },
@@ -162,6 +185,41 @@ export async function createSubmission(
   if (form.currentVersion.status !== 'PUBLISHED') {
     throw new RmoError('This form is not open for submission.', 400);
   }
+
+  let snapshotCrewTypeId: number | null = null;
+  let snapshotDutyTypeId: number | null = null;
+
+  if (role === 'CREW_USER') {
+    if (!actor.crewTypeId || !actor.homeDivisionId) throw new RmoError(DENIED, 403);
+    if (input.dutyTypeId == null || !Number.isInteger(input.dutyTypeId)) {
+      throw new RmoError('Duty type is required.', 400);
+    }
+    const dutyType = await prisma.dutyType.findUnique({
+      where: { id: input.dutyTypeId },
+      select: { id: true, isActive: true },
+    });
+    if (!dutyType || !dutyType.isActive) {
+      throw new RmoError('Duty type was not found or is inactive.', 400);
+    }
+    if (
+      form.crewTypeId !== actor.crewTypeId ||
+      form.dutyTypeId !== dutyType.id ||
+      form.divisionId !== actor.homeDivisionId
+    ) {
+      throw new RmoError(DENIED, 403);
+    }
+    const allowed = await crewFormIds(actor, dutyType.id);
+    if (!allowed.includes(form.id)) throw new RmoError(DENIED, 403);
+    snapshotCrewTypeId = actor.crewTypeId;
+    snapshotDutyTypeId = dutyType.id;
+  } else {
+    if (form.crewTypeId != null || form.dutyTypeId != null) {
+      throw new RmoError(DENIED, 403);
+    }
+    const allowed = await assignedFormIds(actor);
+    if (!allowed.includes(input.formId)) throw new RmoError(DENIED, 403);
+  }
+
   let answers;
   try {
     answers = validateAnswers(parseFormSchema(form.currentVersion.schema), input.answers ?? {});
@@ -175,8 +233,11 @@ export async function createSubmission(
       formVersionId: form.currentVersion.id,
       divisionId: actor.homeDivisionId as number,
       lobbyId: actor.homeLobbyId,
+      crewTypeId: snapshotCrewTypeId,
+      dutyTypeId: snapshotDutyTypeId,
       submittedById: actor.id,
       status: 'COMPLETED',
+      source: 'AUTHENTICATED',
       answers: answers as unknown as Prisma.InputJsonValue,
     },
     select: submissionSelect,
@@ -186,7 +247,10 @@ export async function createSubmission(
     lobbyId: submission.lobbyId,
     formId: submission.formId,
     formVersionId: submission.formVersionId,
+    crewTypeId: submission.crewTypeId,
+    dutyTypeId: submission.dutyTypeId,
     status: submission.status,
+    source: submission.source,
   });
   return present(submission, true);
 }
@@ -249,8 +313,11 @@ export async function exportSubmissions(actor: Actor, filter: SubmissionFilter) 
     'division',
     'lobby',
     'submittedBy',
+    'staffNumber',
     'submittedAt',
     'status',
+    'submissionSource',
+    'publicReference',
     ...fieldKeys,
   ];
   const lines = [header.map(csvCell).join(',')];
@@ -267,8 +334,11 @@ export async function exportSubmissions(actor: Actor, filter: SubmissionFilter) 
         row.division.name,
         row.lobby?.name ?? '',
         row.submittedBy.loginId || row.submittedBy.name,
-        row.submittedAt.toISOString(),
+        row.submittedBy.loginId || '',
+        formatCellDate(row.submittedAt),
         row.status,
+        row.source,
+        row.publicReference || '',
         ...fieldKeys.map(key => answers[key] ?? ''),
       ]
         .map(csvCell)
@@ -342,8 +412,13 @@ function buildFormSheets(
       { key: 'division', header: 'Division', width: 18 },
       { key: 'lobby', header: 'Lobby', width: 18 },
       { key: 'submitted_by', header: 'Submitted By', width: 20 },
+      { key: 'staff_number', header: 'Staff Number', width: 16 },
+      { key: 'crew_type', header: 'Crew Type', width: 12 },
+      { key: 'duty_type', header: 'Duty Type', width: 14 },
       { key: 'submitted_at', header: 'Submitted At', width: 20 },
       { key: 'status', header: 'Status', width: 12 },
+      { key: 'submission_source', header: 'Submission Source', width: 16 },
+      { key: 'public_reference', header: 'Public Reference', width: 22 },
     ];
     const dynamic: WorkbookColumn[] = Array.from(fieldMeta.entries()).map(([key, label]) => ({
       key: `f_${key}`,
@@ -361,8 +436,13 @@ function buildFormSheets(
         division: row.division.name,
         lobby: row.lobby?.name ?? '',
         submitted_by: row.submittedBy.loginId || row.submittedBy.name,
+        staff_number: row.submittedBy.loginId || '',
+        crew_type: row.crewType?.code || '',
+        duty_type: row.dutyType?.code || '',
         submitted_at: formatCellDate(row.submittedAt),
         status: row.status,
+        submission_source: row.source,
+        public_reference: row.publicReference || '',
       };
       for (const key of fieldMeta.keys()) {
         out[`f_${key}`] = answerDisplay(answers[key]);
